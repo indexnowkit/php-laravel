@@ -9,5 +9,5 @@ Quick rules (details in the monorepo's CONTRIBUTING.md):
   `LaravelTestCase::configOverrides()`).
 - Nothing may throw from an observer, `app()->terminating()` or the queue job into the application: log on the
   IndexNow channel instead.
-- Laravel 11 and 12 both stay green; the core conformance kits (`tests/Conformance/`) must pass unchanged.
+- Laravel 11, 12 and 13 all stay green; the core conformance kits (`tests/Conformance/`) must pass unchanged.
 - phpstan level 9 (+ larastan) and php-cs-fixer must pass. PHPUnit, not Pest.

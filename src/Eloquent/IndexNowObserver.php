@@ -27,6 +27,9 @@ use WeakMap;
  */
 final class IndexNowObserver
 {
+    /** Model events the observer handles; {@see IndexNowable} registers exactly these. */
+    public const EVENTS = ['created', 'updated', 'deleting', 'deleted', 'restored'];
+
     /** @var WeakMap<Model, list<string>> URLs resolved in `deleting`, delivered in `deleted` */
     private WeakMap $pendingDeletions;
 

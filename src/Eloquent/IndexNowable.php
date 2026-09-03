@@ -15,6 +15,9 @@ trait IndexNowable
 {
     public static function bootIndexNowable(): void
     {
-        static::observe(IndexNowObserver::class);
+        // Not Model::observe(): it instantiates the model, which Laravel 13 forbids while the model is booting.
+        foreach (IndexNowObserver::EVENTS as $event) {
+            static::registerModelEvent($event, IndexNowObserver::class . '@' . $event);
+        }
     }
 }

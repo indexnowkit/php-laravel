@@ -7,7 +7,7 @@ One attribute on the model, one env variable, done.
 [![Downloads](https://img.shields.io/packagist/dt/indexnowkit/laravel)](https://packagist.org/packages/indexnowkit/laravel)
 [![CI](https://github.com/indexnowkit/php/actions/workflows/ci.yml/badge.svg)](https://github.com/indexnowkit/php/actions)
 [![Conformance](https://img.shields.io/badge/conformance-core%2022%2F22%20%C2%B7%20orm%2021%2F21%20%C2%B7%20http%206%2F6-brightgreen)](https://github.com/indexnowkit/spec)
-![PHP](https://img.shields.io/badge/php-%5E8.2-777bb4) ![Laravel](https://img.shields.io/badge/laravel-11%20%7C%2012-ff2d20)
+![PHP](https://img.shields.io/badge/php-%5E8.2-777bb4) ![Laravel](https://img.shields.io/badge/laravel-11%20%7C%2012%20%7C%2013-ff2d20)
 
 [Русская версия](README.ru.md)
 
@@ -175,7 +175,7 @@ Public API: `config/indexnow.php` keys, command names and options, the container
 [docs/extending.md](docs/extending.md), `Facades\IndexNowKit` / `IndexNowManager`, `Eloquent\IndexNowable`,
 `Queue\SubmitUrlsJob`. The core's rules apply, including the "may grow" interfaces:
 [bc.md](https://github.com/indexnowkit/php-core/blob/main/docs/bc.md). Before 1.0 a minor version may break; every
-break is listed under "Changed" in [CHANGELOG.md](CHANGELOG.md) with the migration. Laravel 11 and 12, PHP 8.2–8.5.
+break is listed under "Changed" in [CHANGELOG.md](CHANGELOG.md) with the migration. Laravel 11, 12 and 13, PHP 8.2–8.5 (Laravel 13 needs PHP 8.3).
 
 ## Other frameworks
 

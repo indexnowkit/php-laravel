@@ -7,7 +7,7 @@
 [![Downloads](https://img.shields.io/packagist/dt/indexnowkit/laravel)](https://packagist.org/packages/indexnowkit/laravel)
 [![CI](https://github.com/indexnowkit/php/actions/workflows/ci.yml/badge.svg)](https://github.com/indexnowkit/php/actions)
 [![Conformance](https://img.shields.io/badge/conformance-core%2022%2F22%20%C2%B7%20orm%2021%2F21%20%C2%B7%20http%206%2F6-brightgreen)](https://github.com/indexnowkit/spec)
-![PHP](https://img.shields.io/badge/php-%5E8.2-777bb4) ![Laravel](https://img.shields.io/badge/laravel-11%20%7C%2012-ff2d20)
+![PHP](https://img.shields.io/badge/php-%5E8.2-777bb4) ![Laravel](https://img.shields.io/badge/laravel-11%20%7C%2012%20%7C%2013-ff2d20)
 
 [English version](README.md)
 
@@ -173,8 +173,8 @@ php artisan indexnow:check --live   # плюс реальный пробный �
 [docs/extending.md](docs/extending.md), `Facades\IndexNowKit` / `IndexNowManager`, `Eloquent\IndexNowable`,
 `Queue\SubmitUrlsJob`. Действуют правила core, включая интерфейсы «may grow»:
 [bc.md](https://github.com/indexnowkit/php-core/blob/main/docs/bc.md). До 1.0 минорная версия может ломать
-совместимость; каждое изменение перечислено в «Changed» в [CHANGELOG.md](CHANGELOG.md) с миграцией. Laravel 11 и 12,
-PHP 8.2–8.5.
+совместимость; каждое изменение перечислено в «Changed» в [CHANGELOG.md](CHANGELOG.md) с миграцией. Laravel 11, 12 и 13,
+PHP 8.2–8.5 (Laravel 13 требует PHP 8.3).
 
 ## Другие фреймворки
 
