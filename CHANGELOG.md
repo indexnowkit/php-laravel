@@ -3,6 +3,24 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [0.3.0] — 2026-09-04
+
+### Changed
+
+- **Requires `indexnowkit/core ^0.3`.** The command bodies moved to the core (`IndexNowKit\Console\*Runner`); the
+  artisan commands only parse their input, so every framework prints the same output. Visible in the terminal:
+  tables in the Symfony style (no borders), errors and warnings as blocks, `indexnow:explain` with titled sections.
+- **`Console\ResultRenderer`, `Console\ResultSummary`, `Console\SubmitterFactory` are gone.** To change the output
+  bind `IndexNowKit\Console\ResultFormatterInterface`; to wrap what `--force` / `--dry-run` submit through bind
+  `IndexNowKit\Console\SubmitterFactoryInterface`. `Console\ModelLoader` implements
+  `IndexNowKit\Console\SubjectLoaderInterface` (`byIds()` and `all()` take the `Event` instead of a `$withTrashed`
+  flag); the commands resolve the interface, so bind it to your own loader for tenant scoping.
+- **`Check\SitemapSpoolCheck` is the core's** (`IndexNowKit\Check\SitemapSpoolCheck`, built from the `sitemap`
+  config block). The "eloquent: observers active" line of `indexnow:check` is `Check\EloquentCheck`, a tagged
+  check like the others.
+- The `handle()` signatures of the command classes changed (they receive their runner). They are `final` and
+  registered by the provider; nothing to change unless you called them yourself.
+
 ## [0.2.1] — 2026-09-04
 
 ### Added
@@ -61,5 +79,6 @@ First release, on `indexnowkit/core ^0.2.2`. Laravel 11 and 12, PHP 8.2–8.5.
 - Tests: the core conformance kits (`CoreConformanceTestCase`, `OrmConformanceTestCase`) on `orchestra/testbench`,
   H01–H06, queue, soft deletes, multi-domain and locale scenarios.
 
+[0.3.0]: https://github.com/indexnowkit/php-laravel/compare/0.2.1...0.3.0
 [0.2.1]: https://github.com/indexnowkit/php-laravel/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/indexnowkit/php-laravel/releases/tag/0.2.0

@@ -22,11 +22,19 @@ use IndexNowKit\Attribute\ParamExtractor;
 use IndexNowKit\Attribute\RuleRegistry;
 use IndexNowKit\Check\Checker;
 use IndexNowKit\Check\CheckerInterface;
+use IndexNowKit\Check\SitemapSpoolCheck;
 use IndexNowKit\Client;
 use IndexNowKit\ClientInterface;
 use IndexNowKit\Collector\Collector;
 use IndexNowKit\Collector\CollectorInterface;
 use IndexNowKit\Config;
+use IndexNowKit\Console\ResultFormatterInterface;
+use IndexNowKit\Console\ResultRenderer;
+use IndexNowKit\Console\SitemapRunner;
+use IndexNowKit\Console\SubjectLoaderInterface;
+use IndexNowKit\Console\SubmitterFactory;
+use IndexNowKit\Console\SubmitterFactoryInterface;
+use IndexNowKit\Console\Vocabulary;
 use IndexNowKit\Debounce\DebounceStoreInterface;
 use IndexNowKit\Debounce\MemoryDebounceStore;
 use IndexNowKit\Debounce\NullDebounceStore;
@@ -44,12 +52,13 @@ use IndexNowKit\Key\KeyProviderInterface;
 use IndexNowKit\Key\KeyValidator;
 use IndexNowKit\Key\StaticKeyProvider;
 use IndexNowKit\Laravel\Check\CacheStoreCheck;
+use IndexNowKit\Laravel\Check\EloquentCheck;
 use IndexNowKit\Laravel\Check\QueueCheck;
-use IndexNowKit\Laravel\Check\SitemapSpoolCheck;
 use IndexNowKit\Laravel\Config\ConfigFactory;
 use IndexNowKit\Laravel\Console\CheckCommand;
 use IndexNowKit\Laravel\Console\ExplainCommand;
 use IndexNowKit\Laravel\Console\KeyGenerateCommand;
+use IndexNowKit\Laravel\Console\ModelLoader;
 use IndexNowKit\Laravel\Console\SitemapCommand;
 use IndexNowKit\Laravel\Console\SubmitCommand;
 use IndexNowKit\Laravel\Console\SubmitModelCommand;
@@ -255,14 +264,63 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         });
         $this->app->singleton(QueueCheck::class);
         $this->app->singleton(CacheStoreCheck::class);
-        $this->app->singleton(SitemapSpoolCheck::class);
-        $this->app->tag([QueueCheck::class, CacheStoreCheck::class, SitemapSpoolCheck::class], self::CHECK_TAG);
+        $this->app->singleton(SitemapSpoolCheck::class, static function (Container $app): SitemapSpoolCheck {
+            $sitemap = self::raw($app)['sitemap'] ?? [];
+
+            return new SitemapSpoolCheck(\is_array($sitemap) ? $sitemap : []);
+        });
+        $this->app->singleton(EloquentCheck::class, static fn(Container $app): EloquentCheck => new EloquentCheck((bool) (self::block($app, 'eloquent')['enabled'] ?? true) && $app->make(Config::class)->enabled));
+        $this->app->tag([QueueCheck::class, CacheStoreCheck::class, SitemapSpoolCheck::class, EloquentCheck::class], self::CHECK_TAG);
+        $this->registerConsole();
         $this->app->singleton(CheckerInterface::class, static fn(Container $app): CheckerInterface => new Checker($app->make(Config::class), $app->make(KeyProviderInterface::class), $app->make(TransportInterface::class), $app->tagged(self::CHECK_TAG)));
         $this->app->singleton(KeyFileController::class, static function (Container $app): KeyFileController {
             $keyFile = self::raw($app)['key_file'] ?? [];
             $maxAge = \is_array($keyFile) ? ($keyFile['cache_max_age'] ?? null) : null;
 
             return new KeyFileController($app->make(KeyFileResponder::class), is_numeric($maxAge) ? (int) $maxAge : KeyFileResponder::DEFAULT_MAX_AGE, $app->make(Config::class)->hosts !== []);
+        });
+    }
+
+    /**
+     * The shared command bodies of the core (`IndexNowKit\Console\*Runner`) with Laravel words and bindings; the
+     * artisan commands only parse their input. Rebind `SubjectLoaderInterface`, `ResultFormatterInterface` or
+     * `SubmitterFactoryInterface` to change how models are found, how results are printed, what `--force` submits
+     * through.
+     */
+    private function registerConsole(): void
+    {
+        $this->app->singleton(Vocabulary::class, static fn(): Vocabulary => new Vocabulary(
+            subject: 'model',
+            subjects: 'models',
+            cli: 'php artisan',
+            submitSubjects: 'indexnow:submit-model',
+            configLocation: 'config/indexnow.php and INDEXNOW_* env vars',
+            keyFileServedBy: 'by the package route',
+            sitemapUrlOption: 'indexnow.sitemap.url',
+        ));
+        $this->app->singleton(SubjectLoaderInterface::class, static fn(Container $app): SubjectLoaderInterface => $app->make(ModelLoader::class));
+        $this->app->singleton(ResultFormatterInterface::class, ResultRenderer::class);
+        $this->app->singleton(SubmitterFactoryInterface::class, static fn(Container $app): SubmitterFactoryInterface => new SubmitterFactory(
+            $app->make(TransportInterface::class),
+            $app->make(KeyProviderInterface::class),
+            $app->make(Config::class),
+            $app->make(DebounceStoreInterface::class),
+            $app->make(ThrottleInterface::class),
+            $app->make(UrlNormalizerInterface::class),
+            $app->make(self::LOGGER),
+        ));
+        $this->app->singleton(SitemapRunner::class, static function (Container $app): SitemapRunner {
+            $sitemap = self::raw($app)['sitemap'] ?? [];
+            $url = \is_array($sitemap) ? ($sitemap['url'] ?? null) : null;
+
+            return new SitemapRunner(
+                $app->make(IndexNowKit::class),
+                $app->make(SitemapSourceInterface::class),
+                $app->make(SubmitterFactoryInterface::class),
+                \is_string($url) && $url !== '' ? $url : null,
+                $app->make(ResultFormatterInterface::class),
+                $app->make(Vocabulary::class),
+            );
         });
     }
 

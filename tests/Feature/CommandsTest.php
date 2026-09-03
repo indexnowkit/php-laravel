@@ -94,8 +94,7 @@ final class CommandsTest extends LaravelTestCase
     {
         [$code, $output] = $this->artisanCall('indexnow:submit', ['urls' => ['/a', 'https://www.example.com/b']]);
         self::assertSame(0, $code);
-        self::assertStringContainsString('| api ', $output);
-        self::assertStringContainsString('| ok ', $output);
+        self::assertMatchesRegularExpression('/\\bapi\\s+www\\.example\\.com\\s+2\\s+ok\\b/', $output);
         self::assertSame(['https://www.example.com/a', 'https://www.example.com/b'], $this->sentUrls());
 
         [$code, $output] = $this->artisanCall('indexnow:submit', ['urls' => ['/c'], '--json' => true]);

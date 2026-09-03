@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace IndexNowKit\Laravel\Console;
 
 use Illuminate\Console\Command;
-use IndexNowKit\Event;
-use IndexNowKit\Exception\InvalidArgumentException;
-use IndexNowKit\IndexNowKit;
-use IndexNowKit\Url\ResolvedUrl;
+use IndexNowKit\Console\SubmitSubjectsOptions;
+use IndexNowKit\Console\SubmitSubjectsRunner;
 
 final class SubmitModelCommand extends Command
 {
@@ -24,82 +22,21 @@ final class SubmitModelCommand extends Command
 
     protected $description = 'Resolve the URLs of Eloquent models through their #[IndexNow] rules and submit them (the manual path after bulk updates)';
 
-    public function handle(IndexNowKit $indexNow, ModelLoader $models, SubmitterFactory $submitters, ResultRenderer $renderer): int
+    public function handle(SubmitSubjectsRunner $runner): int
     {
-        $json = (bool) $this->option('json');
-        $modelArg = $this->argument('model');
-        try {
-            $class = $models->resolveClass(\is_string($modelArg) ? $modelArg : '');
-        } catch (InvalidArgumentException $e) {
-            $this->error($e->getMessage());
+        $model = $this->argument('model');
+        $event = $this->option('event');
+        $limit = $this->option('limit');
 
-            return self::INVALID;
-        }
-        $eventOption = $this->option('event');
-        $event = Event::tryFrom(\is_string($eventOption) ? $eventOption : '');
-        if ($event === null) {
-            $this->error('--event must be created, updated or deleted.');
-
-            return self::INVALID;
-        }
-        /** @var list<string> $ids */
-        $ids = array_map(strval(...), (array) $this->argument('ids'));
-        $limitOption = $this->option('limit');
-        $limit = is_numeric($limitOption) ? (int) $limitOption : 1000;
-        $withTrashed = $event === Event::Deleted;
-        if ($ids === []) {
-            $entities = [...$models->all($class, $limit, $withTrashed)];
-            if (\count($entities) >= $limit && !$json) {
-                $this->warn(\sprintf('--limit=%d reached: models beyond the first %d were not loaded.', $limit, $limit));
-            }
-        } else {
-            [$entities, $missing] = $models->byIds($class, $ids, $withTrashed);
-            if ($missing !== []) {
-                $this->error(\sprintf('%s: id(s) not found: %s', $class, implode(', ', $missing)));
-                if ($entities === []) {
-                    return self::INVALID;
-                }
-            }
-        }
-
-        $resolved = [];
-        foreach ($entities as $entity) {
-            $resolved = [...$resolved, ...$indexNow->explain($entity, $event)];
-        }
-        $urls = ResolvedUrl::urls($resolved);
-        if (!$json) {
-            $this->line(\sprintf('%d model%s -> %d URL(s)', \count($entities), \count($entities) === 1 ? '' : 's', \count($urls)));
-        }
-        if ((bool) $this->option('explain')) {
-            return $this->explain($resolved, $json);
-        }
-        if ($urls === [] && !$json) {
-            $this->line('No URL resolved: no #[IndexNow] rule applies to these models for this event (run with --explain, or php artisan indexnow:explain <model> <id>).');
-        }
-        $force = (bool) $this->option('force');
-        $dryRun = (bool) $this->option('dry-run');
-        $submitter = $force || $dryRun ? $submitters->create($force, $dryRun) : $indexNow->submitter;
-
-        return $renderer->results($this, $submitter->submit($urls), $json);
-    }
-
-    /**
-     * @param list<ResolvedUrl> $resolved
-     */
-    private function explain(array $resolved, bool $json): int
-    {
-        if ($json) {
-            $this->getOutput()->writeln((string) json_encode(array_map(static fn(ResolvedUrl $r): array => ['class' => $r->class, 'rule' => $r->rule, 'event' => $r->event->value, 'locale' => $r->locale, 'url' => $r->url], $resolved), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-
-            return self::SUCCESS;
-        }
-        if ($resolved === []) {
-            $this->warn('No URL resolved.');
-
-            return self::SUCCESS;
-        }
-        $this->table(['class', 'rule', 'event', 'locale', 'url'], array_map(static fn(ResolvedUrl $r): array => [$r->class, $r->rule, $r->event->value, $r->locale ?? '-', $r->url], $resolved));
-
-        return self::SUCCESS;
+        return $runner->run($this->getOutput(), new SubmitSubjectsOptions(
+            class : \is_string($model) ? $model : '',
+            ids : array_values(array_map(\strval(...), (array) $this->argument('ids'))),
+            event : \is_string($event) ? $event : '',
+            limit : is_numeric($limit) ? (int) $limit : 1000,
+            explain : (bool) $this->option('explain'),
+            force : (bool) $this->option('force'),
+            dryRun : (bool) $this->option('dry-run'),
+            json : (bool) $this->option('json'),
+        ));
     }
 }

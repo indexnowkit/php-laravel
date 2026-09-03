@@ -29,7 +29,10 @@ The service provider registers one container binding per core interface. Replace
 | `IndexNowKit\Sitemap\SitemapSourceInterface` | `SitemapReader` | filter, rewrite or replace the sitemap source |
 | `IndexNowKit\Laravel\IndexNowManager` | facade root | — |
 | `IndexNowKit\Laravel\Eloquent\IndexNowObserver` (singleton) | the observer | — |
-| `IndexNowKit\Laravel\Console\{ModelLoader, ResultRenderer, SubmitterFactory}` | | model lookup (tenant scoping), command output, `--force`/`--dry-run` submitters |
+| `IndexNowKit\Console\SubjectLoaderInterface` | `Console\ModelLoader` | model lookup (tenant scoping, another id format) |
+| `IndexNowKit\Console\ResultFormatterInterface` | `ResultRenderer` | command output (your JSON envelope or table style) |
+| `IndexNowKit\Console\SubmitterFactoryInterface` | `SubmitterFactory` | what `--force` / `--dry-run` submit through |
+| `IndexNowKit\Console\Vocabulary`, `Console\*Runner` | Laravel words; the command bodies | reuse a runner from your own command (a tenant loop over `SubmitSubjectsRunner`) |
 | `indexnowkit.logger` | `Log::channel(logging.channel)` | a PSR-3 logger of your own (tests: `ArrayLogger`) |
 
 ## Custom resolvers
@@ -77,7 +80,7 @@ Add lines to the report; never throw — a failing check is an error line.
 `IndexNowKit::kit()->submitter->addListener(fn (Result $result) => ...)` receives every `Result` (engine, host,
 status, reason, HTTP code, URL count) for metrics or an admin log. Register it on the bound `SubmitterInterface`
 instance, which is what the observer, the job and the commands use (commands with `--force` / `--dry-run` build a
-separate submitter through `SubmitterFactory`).
+separate submitter through `SubmitterFactoryInterface`).
 
 ## Reading model attributes
 

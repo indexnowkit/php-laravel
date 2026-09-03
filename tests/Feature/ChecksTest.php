@@ -8,9 +8,9 @@ use Illuminate\Contracts\Cache\Factory;
 use Illuminate\Contracts\Config\Repository;
 use IndexNowKit\Check\CheckLevel;
 use IndexNowKit\Check\CheckReport;
+use IndexNowKit\Check\SitemapSpoolCheck;
 use IndexNowKit\Laravel\Check\CacheStoreCheck;
 use IndexNowKit\Laravel\Check\QueueCheck;
-use IndexNowKit\Laravel\Check\SitemapSpoolCheck;
 use IndexNowKit\Laravel\Tests\LaravelTestCase;
 use PHPUnit\Framework\Attributes\TestDox;
 
@@ -80,24 +80,15 @@ final class ChecksTest extends LaravelTestCase
     #[TestDox('sitemap spool: disabled prints nothing; memory, writable disk, unwritable disk with auto/disk')]
     public function testSitemapSpoolCheck(): void
     {
-        $config = $this->app->make(Repository::class);
-        $check = new SitemapSpoolCheck($config);
+        self::assertSame([], $this->levels(new SitemapSpoolCheck(['enabled' => false])));
 
-        $config->set('indexnow.sitemap.enabled', false);
-        self::assertSame([], $this->levels($check));
-
-        $config->set('indexnow.sitemap.enabled', true);
-        $config->set('indexnow.sitemap.spool', 'memory');
-        $config->set('indexnow.sitemap.max_bytes', 1024);
+        $check = new SitemapSpoolCheck(['spool' => 'memory', 'max_bytes' => 1024]);
         self::assertStringContainsString('in memory (sitemap.spool: memory, at most 1 KiB', $this->messages($check)[0]);
 
-        $config->set('indexnow.sitemap.spool', 'auto');
-        $config->set('indexnow.sitemap.spool_dir', sys_get_temp_dir());
-        self::assertSame([CheckLevel::Ok], $this->levels($check));
+        self::assertSame([CheckLevel::Ok], $this->levels(new SitemapSpoolCheck(['spool' => 'auto', 'spool_dir' => sys_get_temp_dir()])));
 
-        $config->set('indexnow.sitemap.spool_dir', '/nonexistent/indexnow');
-        self::assertSame([CheckLevel::Warning], $this->levels($check));
-        $config->set('indexnow.sitemap.spool', 'disk');
+        self::assertSame([CheckLevel::Warning], $this->levels(new SitemapSpoolCheck(['spool' => 'auto', 'spool_dir' => '/nonexistent/indexnow'])));
+        $check = new SitemapSpoolCheck(['spool' => 'disk', 'spool_dir' => '/nonexistent/indexnow']);
         self::assertSame([CheckLevel::Error], $this->levels($check));
         self::assertStringContainsString('does not exist', $this->messages($check)[0]);
     }

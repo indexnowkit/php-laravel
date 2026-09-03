@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace IndexNowKit\Laravel\Console;
 
 use Illuminate\Console\Command;
-use IndexNowKit\IndexNowKit;
+use IndexNowKit\Console\SubmitRunner;
 
 final class SubmitCommand extends Command
 {
@@ -17,14 +17,11 @@ final class SubmitCommand extends Command
 
     protected $description = 'Submit URLs to IndexNow immediately (synchronously, bypassing the queue)';
 
-    public function handle(IndexNowKit $indexNow, SubmitterFactory $submitters, ResultRenderer $renderer): int
+    public function handle(SubmitRunner $runner): int
     {
         /** @var list<string> $urls */
-        $urls = (array) $this->argument('urls');
-        $force = (bool) $this->option('force');
-        $dryRun = (bool) $this->option('dry-run');
-        $submitter = $force || $dryRun ? $submitters->create($force, $dryRun) : $indexNow->submitter;
+        $urls = array_values(array_map(\strval(...), (array) $this->argument('urls')));
 
-        return $renderer->results($this, $submitter->submit($urls), (bool) $this->option('json'));
+        return $runner->run($this->getOutput(), $urls, (bool) $this->option('force'), (bool) $this->option('dry-run'), (bool) $this->option('json'));
     }
 }

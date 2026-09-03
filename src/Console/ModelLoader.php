@@ -6,18 +6,19 @@ namespace IndexNowKit\Laravel\Console;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use IndexNowKit\Console\SubjectLoaderInterface;
+use IndexNowKit\Event;
 use IndexNowKit\Exception\InvalidArgumentException;
 
 /**
  * Resolves the model argument of `indexnow:submit-model` / `indexnow:explain` (FQCN or a short name under
- * App\Models) and loads models by id. Bind your own instance to honour tenant scoping or a different id format.
+ * App\Models) and loads models by id; SoftDeletes models are loaded `withTrashed()` for the deleted event. Bind your
+ * own `SubjectLoaderInterface` to honour tenant scoping or a different id format.
  */
-class ModelLoader
+class ModelLoader implements SubjectLoaderInterface
 {
     /**
      * @return class-string<Model>
-     *
-     * @throws InvalidArgumentException when the class is unknown or not an Eloquent model
      */
     public function resolveClass(string $class): string
     {
@@ -36,17 +37,17 @@ class ModelLoader
     }
 
     /**
-     * @param class-string<Model> $class
-     * @param list<string>        $ids
+     * @param class-string $class
+     * @param list<string> $ids
      *
      * @return array{0: list<Model>, 1: list<string>} found models and missing ids
      */
-    public function byIds(string $class, array $ids, bool $withTrashed = false): array
+    public function byIds(string $class, array $ids, Event $event): array
     {
         $found = [];
         $missing = [];
         foreach ($ids as $id) {
-            $model = $this->query($class, $withTrashed)->find($id);
+            $model = $this->query(self::modelClass($class), $event === Event::Deleted)->find($id);
             if ($model instanceof Model) {
                 $found[] = $model;
             } else {
@@ -58,13 +59,27 @@ class ModelLoader
     }
 
     /**
-     * @param class-string<Model> $class
+     * @param class-string $class
      *
      * @return iterable<Model>
      */
-    public function all(string $class, int $limit, bool $withTrashed = false): iterable
+    public function all(string $class, int $limit, Event $event): iterable
     {
-        return $this->query($class, $withTrashed)->limit(max(1, $limit))->get()->all();
+        return $this->query(self::modelClass($class), $event === Event::Deleted)->limit(max(1, $limit))->get()->all();
+    }
+
+    /**
+     * @param class-string $class
+     *
+     * @return class-string<Model>
+     */
+    private static function modelClass(string $class): string
+    {
+        if (!is_subclass_of($class, Model::class)) {
+            throw new InvalidArgumentException(\sprintf('"%s" is not an Eloquent model.', $class));
+        }
+
+        return $class;
     }
 
     /**
