@@ -1,0 +1,16 @@
+# Standalone configuration for the split repository; the monorepo uses php/phpstan.neon.dist with the same level and rules.
+includes:
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+    - vendor/larastan/larastan/extension.neon
+parameters:
+    level: 9
+    paths:
+        - src
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # larastan resolves facade roots through @mixin, which makes phpstan-strict-rules see their methods as static
+        - identifier: staticMethod.dynamicCall
+          path: src/*
+        # used by application models, not by the package itself
+        - identifier: trait.unused
+          path: src/Eloquent/IndexNowable.php

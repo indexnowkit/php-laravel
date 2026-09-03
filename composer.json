@@ -1,0 +1,73 @@
+{
+    "name": "indexnowkit/laravel",
+    "description": "Laravel package for IndexNow: notify Yandex, Bing, Naver, Seznam and Yep when Eloquent models change. #[IndexNow] rules on models, commit-safe observers, queued submission, key file route, artisan commands.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "indexnow",
+        "laravel",
+        "eloquent",
+        "seo",
+        "yandex",
+        "bing",
+        "queue"
+    ],
+    "homepage": "https://github.com/indexnowkit/php-laravel",
+    "support": {
+        "issues": "https://github.com/indexnowkit/php/issues",
+        "source": "https://github.com/indexnowkit/php-laravel",
+        "docs": "https://github.com/indexnowkit/php-laravel/blob/main/README.md",
+        "security": "https://github.com/indexnowkit/php-laravel/blob/main/SECURITY.md"
+    },
+    "require": {
+        "php": "^8.2",
+        "ext-json": "*",
+        "illuminate/cache": "^11.0 || ^12.0",
+        "illuminate/console": "^11.0 || ^12.0",
+        "illuminate/contracts": "^11.0 || ^12.0",
+        "illuminate/database": "^11.0 || ^12.0",
+        "illuminate/queue": "^11.0 || ^12.0",
+        "illuminate/routing": "^11.0 || ^12.0",
+        "illuminate/support": "^11.0 || ^12.0",
+        "indexnowkit/core": "^0.2.2",
+        "psr/log": "^1.1 || ^2.0 || ^3.0"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "orchestra/testbench": "^9.0 || ^10.0",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpunit/phpunit": "^11.5"
+    },
+    "suggest": {
+        "laravel/octane": "Supported: the collector is a scoped singleton and is flushed on terminate",
+        "nyholm/psr7": "PSR-17 factories when no PSR-18 client is installed (any PSR-18 client works, e.g. guzzlehttp/guzzle ^7 which Laravel ships)"
+    },
+    "autoload": {
+        "psr-4": {
+            "IndexNowKit\\Laravel\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "IndexNowKit\\Laravel\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "stan": "phpstan analyse --memory-limit=1G"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "IndexNowKit\\Laravel\\IndexNowKitServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.2.x-dev"
+        }
+    }
+}
