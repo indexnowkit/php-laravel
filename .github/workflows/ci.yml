@@ -31,9 +31,10 @@ jobs:
       - name: Install (highest)
         if: matrix.deps == 'highest'
         run: composer update --no-interaction --prefer-dist
+      # Laravel 11 is past its security-fix window and every release carries advisories, which Composer >= 2.9 refuses to install by default.
       - name: Install (Laravel 11 / Testbench 9)
         if: matrix.deps == 'laravel11'
-        run: composer update --no-interaction --prefer-dist --with illuminate/support:^11.0 --with orchestra/testbench:^9.0
+        run: composer config policy.advisories.block false && composer update --no-interaction --prefer-dist --with illuminate/support:^11.0 --with orchestra/testbench:^9.0
       - run: vendor/bin/phpunit
       - run: vendor/bin/phpstan analyse --memory-limit=1G
         if: matrix.deps == 'highest'
