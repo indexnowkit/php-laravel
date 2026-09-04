@@ -3,7 +3,7 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
-## [Unreleased]
+## [0.4.0] — 2026-09-04
 
 ### Changed
 
@@ -91,6 +91,7 @@ First release, on `indexnowkit/core ^0.2.2`. Laravel 11 and 12, PHP 8.2–8.5.
 - Tests: the core conformance kits (`CoreConformanceTestCase`, `OrmConformanceTestCase`) on `orchestra/testbench`,
   H01–H06, queue, soft deletes, multi-domain and locale scenarios.
 
+[0.4.0]: https://github.com/indexnowkit/php-laravel/compare/0.3.0...0.4.0
 [0.3.0]: https://github.com/indexnowkit/php-laravel/compare/0.2.1...0.3.0
 [0.2.1]: https://github.com/indexnowkit/php-laravel/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/indexnowkit/php-laravel/releases/tag/0.2.0
