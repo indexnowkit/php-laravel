@@ -181,7 +181,7 @@ break is listed under "Changed" in [CHANGELOG.md](CHANGELOG.md) with the migrati
 
 | | |
 |---|---|
-| PHP | [core](https://github.com/indexnowkit/php/tree/main/packages/core), [symfony-bundle](https://github.com/indexnowkit/php/tree/main/packages/symfony-bundle), [doctrine](https://github.com/indexnowkit/php/tree/main/packages/doctrine) |
+| PHP | [core](https://github.com/indexnowkit/php/tree/main/packages/core), [symfony-bundle](https://github.com/indexnowkit/php/tree/main/packages/symfony-bundle), [doctrine](https://github.com/indexnowkit/php/tree/main/packages/doctrine), [laravel](https://github.com/indexnowkit/php/tree/main/packages/laravel), [yii2](https://github.com/indexnowkit/php/tree/main/packages/yii2) |
 | JS/TS | @indexnowkit/core, next, prisma (soon) |
 | Python | indexnowkit, indexnowkit-django (soon) |
 
