@@ -64,6 +64,7 @@ use IndexNowKit\Laravel\Console\SubmitCommand;
 use IndexNowKit\Laravel\Console\SubmitModelCommand;
 use IndexNowKit\Laravel\Eloquent\EloquentSubjectReader;
 use IndexNowKit\Laravel\Eloquent\IndexNowObserver;
+use IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface;
 use IndexNowKit\Laravel\Http\KeyFileController;
 use IndexNowKit\Laravel\Queue\QueueDispatcher;
 use IndexNowKit\Laravel\Url\ContainerResolverLocator;
@@ -126,7 +127,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             $app->make(IndexNowKit::class),
             $app->make(self::LOGGER),
             (bool) (self::block($app, 'eloquent')['enabled'] ?? true) && $app->make(Config::class)->enabled,
-            $app->make(LaravelRouteUrlResolver::class),
+            $app->make(RouteBindingFieldsInterface::class),
         ));
     }
 
@@ -211,6 +212,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             return new LaravelRouteUrlResolver($app->make(UrlGenerator::class), $app->make(Router::class), $app->make(Config::class), $app->make(Application::class), $locales, \is_string($parameter) && $parameter !== '' ? $parameter : 'locale', (bool) ($router['set_app_locale'] ?? true));
         });
         $this->app->alias(LaravelRouteUrlResolver::class, RouteUrlResolverInterface::class);
+        $this->app->alias(LaravelRouteUrlResolver::class, RouteBindingFieldsInterface::class);
         $this->app->singleton(ResolverLocatorInterface::class, static fn(Container $app): ResolverLocatorInterface => new ContainerResolverLocator($app));
         $this->app->singleton(UrlResolverInterface::class, static function (Container $app): UrlResolverInterface {
             $config = $app->make(Config::class);

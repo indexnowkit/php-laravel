@@ -29,6 +29,7 @@ The service provider registers one container binding per core interface. Replace
 | `IndexNowKit\Sitemap\SitemapSourceInterface` | `SitemapReader` | filter, rewrite or replace the sitemap source |
 | `IndexNowKit\Laravel\IndexNowManager` | facade root | — |
 | `IndexNowKit\Laravel\Eloquent\IndexNowObserver` (singleton) | the observer | — |
+| `IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface` | `LaravelRouteUrlResolver` | which model field a `{post:slug}` parameter binds to (drives rename detection) when routes come from elsewhere |
 | `IndexNowKit\Console\SubjectLoaderInterface` | `Console\ModelLoader` | model lookup (tenant scoping, another id format) |
 | `IndexNowKit\Console\ResultFormatterInterface` | `ResultRenderer` | command output (your JSON envelope or table style) |
 | `IndexNowKit\Console\SubmitterFactoryInterface` | `SubmitterFactory` | what `--force` / `--dry-run` submit through |

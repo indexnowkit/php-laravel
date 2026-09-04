@@ -3,6 +3,15 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [Unreleased]
+
+### Changed
+
+- `Eloquent\IndexNowObserver` asks the router for route binding fields through the new
+  `Eloquent\RouteBindingFieldsInterface` (implemented by `Url\LaravelRouteUrlResolver`, aliased in the container)
+  instead of depending on the resolver class. `src/Eloquent` now needs only `illuminate/database` and the core;
+  bind the interface to teach the observer another routing scheme. No behaviour change.
+
 ## [0.3.0] — 2026-09-04
 
 ### Changed

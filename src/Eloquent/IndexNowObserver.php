@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 use IndexNowKit\Attribute\ParamExtractor;
 use IndexNowKit\Attribute\RuleSource;
 use IndexNowKit\IndexNowKit;
-use IndexNowKit\Laravel\Url\LaravelRouteUrlResolver;
 use IndexNowKit\Url\ResolvedUrl;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -37,7 +36,7 @@ final class IndexNowObserver
         private readonly IndexNowKit $indexNow,
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly bool $enabled = true,
-        private readonly ?LaravelRouteUrlResolver $router = null,
+        private readonly ?RouteBindingFieldsInterface $router = null,
     ) {
         $this->pendingDeletions = new WeakMap();
     }

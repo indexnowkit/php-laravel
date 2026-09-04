@@ -11,6 +11,7 @@ use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use IndexNowKit\Config;
 use IndexNowKit\Exception\ConfigurationException;
+use IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface;
 use IndexNowKit\Url\RouteUrlResolverInterface;
 
 /**
@@ -22,7 +23,7 @@ use IndexNowKit\Url\RouteUrlResolverInterface;
  * `hosts.<host>.base_url`, else `https://<host>`. Routes with their own `Route::domain()` keep it. The
  * UrlGenerator's global state (`forceRootUrl`) is never touched.
  */
-final class LaravelRouteUrlResolver implements RouteUrlResolverInterface
+final class LaravelRouteUrlResolver implements RouteUrlResolverInterface, RouteBindingFieldsInterface
 {
     /**
      * @param list<string> $locales         locales of `locales: 'all'` (`router.locales`)
