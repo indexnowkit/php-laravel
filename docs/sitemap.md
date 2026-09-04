@@ -59,3 +59,5 @@ $this->app->singleton(SitemapSourceInterface::class, fn ($app) => new FilteringS
 
 `spatie/laravel-sitemap` users: point `sitemap.url` at the generated file (`public/sitemap.xml`) or pass the path as
 the argument; the package reads it locally.
+
+The reader behind the command is the [`indexnowkit/sitemap`](https://github.com/indexnowkit/php/tree/main/packages/sitemap) package (required by this one); its README documents the `sitemap` block and the safety rules.

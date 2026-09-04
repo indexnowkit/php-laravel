@@ -3,6 +3,29 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [0.5.0] — 2026-09-04
+
+The core 0.4 "adapter kit" release: the package is built on the core's factories and `Adapter\ConfigFactory`, and
+the sitemap reader is `indexnowkit/sitemap` (required by this package, installed transitively). Configuration keys,
+commands, bindings and the facade do not change.
+
+### Changed
+
+- Requires `indexnowkit/core ^0.4` and `indexnowkit/sitemap ^0.1`. The sitemap classes moved:
+  `IndexNowKit\Sitemap\*` keep their names, `Console\SitemapRunner`/`SitemapOptions` are
+  `Sitemap\Console\*`, `Check\SitemapSpoolCheck` is `Sitemap\Check\SitemapSpoolCheck` and takes a `SitemapConfig`
+  (bound in the container). `IndexNowKit::sitemap()` is gone: resolve `SitemapSourceInterface` from the container.
+- `php artisan indexnow:sitemap` refuses to run with `sitemap.enabled: false` (`sitemap.enabled is false.`, exit 2)
+  instead of ignoring the flag; an invalid `sitemap` block is logged at `critical` and disables the command.
+- `Config\ConfigFactory` is a declaration of the core's `Adapter\ConfigFactory`; `coreOptions()` is gone, `create()`
+  and `build()` keep their signatures. A typo inside `key_file`/`sitemap` (`key_file.enabld`) is warned about again.
+- `Check\CacheStoreCheck` is the core's `Check\DebounceStoreCheck` with `Check\CacheStoreProbe`;
+  `Url\ContainerResolverLocator` is the core's `ArrayResolverLocator(locate:)`; both classes are removed.
+  `ModelLoader` takes an optional list of namespaces and delegates to `Console\ClassNameResolver`.
+- `IndexNowManager::submitModels()`/`urlsForAll()` delegate to `IndexNowKit::submitAll()`/`urlsForAll()`.
+- The key file response headers come from `Config::keyFileHeaders()`; `key_file.cache_max_age` is a core option now.
+- Dev tooling: phpstan runs on the `lowest` flavour too; larastan/phpstan floors are the current releases.
+
 ## [0.4.0] — 2026-09-04
 
 ### Changed
