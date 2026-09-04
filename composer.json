@@ -3,6 +3,8 @@
     "description": "Laravel package for IndexNow: notify Yandex, Bing, Naver, Seznam and Yep when Eloquent models change. #[IndexNow] rules on models, commit-safe observers, queued submission, key file route, artisan commands.",
     "type": "library",
     "license": "MIT",
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "keywords": [
         "indexnow",
         "laravel",

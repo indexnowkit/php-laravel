@@ -65,6 +65,7 @@ class ModelLoader implements SubjectLoaderInterface
      */
     public function all(string $class, int $limit, Event $event): iterable
     {
+        // @phpstan-ignore staticMethod.dynamicCall (larastan models Query\Builder::limit() as static through @mixin)
         return $this->query(self::modelClass($class), $event === Event::Deleted)->limit(max(1, $limit))->get()->all();
     }
 

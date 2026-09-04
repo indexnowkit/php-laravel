@@ -170,7 +170,9 @@ final class IndexNowObserver
     private static function previousState(Model $model): Model
     {
         $previous = clone $model;
-        $previous->setRawAttributes($model->getRawOriginal(), true);
+        /** @var array<string, mixed> $original Laravel 11 declares getRawOriginal() as mixed for the no-key call */
+        $original = $model->getRawOriginal();
+        $previous->setRawAttributes($original, true);
         $previous->unsetRelations();
 
         return $previous;

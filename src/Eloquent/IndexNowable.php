@@ -11,6 +11,7 @@ namespace IndexNowKit\Laravel\Eloquent;
  *   #[IndexNow(route: 'posts.show', params: ['post' => 'self'], when: 'isPublished')]
  *   class Post extends Model { use IndexNowable; }
  */
+// @phpstan-ignore trait.unused (used by application models, not by the package itself)
 trait IndexNowable
 {
     public static function bootIndexNowable(): void
