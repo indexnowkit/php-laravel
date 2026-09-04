@@ -175,7 +175,7 @@ Public API: `config/indexnow.php` keys, command names and options, the container
 [docs/extending.md](docs/extending.md), `Facades\IndexNowKit` / `IndexNowManager`, `Eloquent\IndexNowable`,
 `Queue\SubmitUrlsJob`. The core's rules apply, including the "may grow" interfaces:
 [bc.md](https://github.com/indexnowkit/php-core/blob/main/docs/bc.md). Before 1.0 a minor version may break; every
-break is listed under "Changed" in [CHANGELOG.md](CHANGELOG.md) with the migration. Laravel 11, 12 and 13, PHP 8.2–8.5 (Laravel 13 needs PHP 8.3).
+break is listed under "Changed" in [CHANGELOG.md](CHANGELOG.md) with the migration. Laravel 12 and 13, PHP 8.2–8.5 (Laravel 13 needs PHP 8.3).
 
 ## Other frameworks
 

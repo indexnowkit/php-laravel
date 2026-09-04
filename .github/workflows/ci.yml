@@ -22,8 +22,8 @@ jobs:
         php: ['8.2', '8.3', '8.4', '8.5']
         deps: [highest]
         include:
-          # Laravel 12 is what "highest" resolves to on PHP 8.2, Laravel 13 on 8.3+; the floor is a flavour of its own.
-          - { php: '8.3', deps: laravel11 }
+          # highest = Laravel 12 on PHP 8.2, Laravel 13 on 8.3+; lowest = Testbench 10.0 and the oldest Laravel 12 without security advisories.
+          - { php: '8.2', deps: lowest }
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2

@@ -7,6 +7,9 @@ contain breaking changes, listed under "Changed".
 
 ### Changed
 
+- **Requires Laravel 12 or 13** (`illuminate/* ^12.0 || ^13.0`); Laravel 11 left its security-fix window in March 2026
+  and every 11.x release now carries advisories that Composer 2.9+ refuses to install by default. Stay on 0.3.x for
+  Laravel 11.
 - `Eloquent\IndexNowObserver` asks the router for route binding fields through the new
   `Eloquent\RouteBindingFieldsInterface` (implemented by `Url\LaravelRouteUrlResolver`, aliased in the container)
   instead of depending on the resolver class. `src/Eloquent` now needs only `illuminate/database` and the core;

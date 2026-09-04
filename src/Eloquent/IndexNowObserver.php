@@ -170,7 +170,7 @@ final class IndexNowObserver
     private static function previousState(Model $model): Model
     {
         $previous = clone $model;
-        /** @var array<string, mixed> $original Laravel 11 declares getRawOriginal() as mixed for the no-key call */
+        /** @var array<string, mixed> $original getRawOriginal() is declared mixed for the no-key call in older Laravel versions */
         $original = $model->getRawOriginal();
         $previous->setRawAttributes($original, true);
         $previous->unsetRelations();

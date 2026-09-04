@@ -173,7 +173,7 @@ php artisan indexnow:check --live   # плюс реальный пробный �
 [docs/extending.md](docs/extending.md), `Facades\IndexNowKit` / `IndexNowManager`, `Eloquent\IndexNowable`,
 `Queue\SubmitUrlsJob`. Действуют правила core, включая интерфейсы «may grow»:
 [bc.md](https://github.com/indexnowkit/php-core/blob/main/docs/bc.md). До 1.0 минорная версия может ломать
-совместимость; каждое изменение перечислено в «Changed» в [CHANGELOG.md](CHANGELOG.md) с миграцией. Laravel 11, 12 и 13,
+совместимость; каждое изменение перечислено в «Changed» в [CHANGELOG.md](CHANGELOG.md) с миграцией. Laravel 12 и 13,
 PHP 8.2–8.5 (Laravel 13 требует PHP 8.3).
 
 ## Другие фреймворки
