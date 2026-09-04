@@ -89,11 +89,11 @@ final class IndexNowManager
      */
     public function submitModels(iterable $models, Event $event = Event::Updated): array
     {
-        return $this->kit->submit($this->urlsForAll($models, $event));
+        return $this->kit->submitAll($models, $event);
     }
 
     /**
-     * URLs the rules yield for many models, de-duplicated.
+     * URLs the rules yield for many models, de-duplicated across the set.
      *
      * @param iterable<object> $models
      *
@@ -101,12 +101,7 @@ final class IndexNowManager
      */
     public function urlsForAll(iterable $models, Event $event = Event::Updated): array
     {
-        $resolved = [];
-        foreach ($models as $model) {
-            $resolved = [...$resolved, ...$this->kit->explain($model, $event)];
-        }
-
-        return ResolvedUrl::urls($resolved);
+        return $this->kit->urlsForAll($models, $event);
     }
 
     /**

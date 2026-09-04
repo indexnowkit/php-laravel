@@ -6,6 +6,7 @@ namespace IndexNowKit\Laravel\Console;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use IndexNowKit\Console\ClassNameResolver;
 use IndexNowKit\Console\SubjectLoaderInterface;
 use IndexNowKit\Event;
 use IndexNowKit\Exception\InvalidArgumentException;
@@ -17,23 +18,22 @@ use IndexNowKit\Exception\InvalidArgumentException;
  */
 class ModelLoader implements SubjectLoaderInterface
 {
+    private readonly ClassNameResolver $classes;
+
+    /**
+     * @param list<string> $namespaces namespaces a short class name is looked up in
+     */
+    public function __construct(array $namespaces = ['App\\Models'])
+    {
+        $this->classes = new ClassNameResolver($namespaces, static fn(string $class): bool => is_subclass_of($class, Model::class), 'an Eloquent model');
+    }
+
     /**
      * @return class-string<Model>
      */
     public function resolveClass(string $class): string
     {
-        $candidate = ltrim($class, '\\');
-        if (!class_exists($candidate) && class_exists('App\\Models\\' . $candidate)) {
-            $candidate = 'App\\Models\\' . $candidate;
-        }
-        if (!class_exists($candidate)) {
-            throw new InvalidArgumentException(\sprintf('Class "%s" not found.', $class));
-        }
-        if (!is_subclass_of($candidate, Model::class)) {
-            throw new InvalidArgumentException(\sprintf('"%s" is not an Eloquent model.', $candidate));
-        }
-
-        return $candidate;
+        return self::modelClass($this->classes->resolve($class));
     }
 
     /**

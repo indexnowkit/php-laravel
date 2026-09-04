@@ -7,6 +7,7 @@ namespace IndexNowKit\Laravel;
 use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Config\Repository;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Events\Dispatcher as EventDispatcher;
 use Illuminate\Contracts\Foundation\Application;
@@ -22,6 +23,7 @@ use IndexNowKit\Attribute\ParamExtractor;
 use IndexNowKit\Attribute\RuleRegistry;
 use IndexNowKit\Check\Checker;
 use IndexNowKit\Check\CheckerInterface;
+use IndexNowKit\Check\DebounceStoreCheck;
 use IndexNowKit\Client;
 use IndexNowKit\ClientInterface;
 use IndexNowKit\Collector\Collector;
@@ -33,23 +35,19 @@ use IndexNowKit\Console\SubjectLoaderInterface;
 use IndexNowKit\Console\SubmitterFactory;
 use IndexNowKit\Console\SubmitterFactoryInterface;
 use IndexNowKit\Console\Vocabulary;
+use IndexNowKit\Debounce\DebounceStoreFactory;
 use IndexNowKit\Debounce\DebounceStoreInterface;
-use IndexNowKit\Debounce\MemoryDebounceStore;
-use IndexNowKit\Debounce\NullDebounceStore;
-use IndexNowKit\Debounce\Psr16DebounceStore;
+use IndexNowKit\Dispatch\DispatcherFactory;
 use IndexNowKit\Dispatch\DispatcherInterface;
-use IndexNowKit\Dispatch\NullDispatcher;
-use IndexNowKit\Dispatch\SyncDispatcher;
 use IndexNowKit\Exception\ConfigurationException;
-use IndexNowKit\Http\LazyTransport;
-use IndexNowKit\Http\Psr18Transport;
+use IndexNowKit\Http\TransportFactory;
 use IndexNowKit\Http\TransportInterface;
 use IndexNowKit\IndexNowKit;
 use IndexNowKit\Key\KeyFileResponder;
 use IndexNowKit\Key\KeyProviderInterface;
 use IndexNowKit\Key\KeyValidator;
 use IndexNowKit\Key\StaticKeyProvider;
-use IndexNowKit\Laravel\Check\CacheStoreCheck;
+use IndexNowKit\Laravel\Check\CacheStoreProbe;
 use IndexNowKit\Laravel\Check\EloquentCheck;
 use IndexNowKit\Laravel\Check\QueueCheck;
 use IndexNowKit\Laravel\Config\ConfigFactory;
@@ -65,7 +63,6 @@ use IndexNowKit\Laravel\Eloquent\IndexNowObserver;
 use IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface;
 use IndexNowKit\Laravel\Http\KeyFileController;
 use IndexNowKit\Laravel\Queue\QueueDispatcher;
-use IndexNowKit\Laravel\Url\ContainerResolverLocator;
 use IndexNowKit\Laravel\Url\LaravelRouteUrlResolver;
 use IndexNowKit\Sitemap\Check\SitemapSpoolCheck;
 use IndexNowKit\Sitemap\Console\SitemapRunner;
@@ -76,6 +73,7 @@ use IndexNowKit\Submitter;
 use IndexNowKit\SubmitterInterface;
 use IndexNowKit\Throttle\ThrottleInterface;
 use IndexNowKit\Throttle\TokenBucket;
+use IndexNowKit\Url\ArrayResolverLocator;
 use IndexNowKit\Url\AttributeUrlResolver;
 use IndexNowKit\Url\GuardedUrlResolver;
 use IndexNowKit\Url\ObjectChangeHandler;
@@ -84,14 +82,15 @@ use IndexNowKit\Url\RouteUrlResolverInterface;
 use IndexNowKit\Url\UrlNormalizer;
 use IndexNowKit\Url\UrlNormalizerInterface;
 use IndexNowKit\Url\UrlResolverInterface;
-use Psr\Http\Client\ClientInterface as PsrClient;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
  * Wires the core component graph into the container, one binding per core interface so an application can replace
- * any piece with `$this->app->bind()`. Registers the observer support, the key file route, the artisan commands and
- * the flush points (app()->terminating(), queue JobProcessed).
+ * any piece with `$this->app->bind()`; the bodies are the core's factories (`Http\TransportFactory`,
+ * `Debounce\DebounceStoreFactory`, `Dispatch\DispatcherFactory`, the `fromConfig()` constructors). Registers the
+ * observer support, the key file route, the artisan commands and the flush points (app()->terminating(), queue
+ * JobProcessed).
  */
 final class IndexNowKitServiceProvider extends ServiceProvider
 {
@@ -101,6 +100,8 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     public const CHECK_TAG = 'indexnowkit.check';
     /** Publish tag of config/indexnow.php. */
     public const CONFIG_TAG = 'indexnow-config';
+    /** The debounce store when `debounce.store` is unset: the application's default cache store. */
+    public const DEFAULT_DEBOUNCE_STORE = 'cache';
 
     public function register(): void
     {
@@ -152,38 +153,20 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     {
         $this->app->singleton(Config::class, static fn(Container $app): Config => ConfigFactory::create(self::raw($app), (string) $app->make(Application::class)->environment(), $app->make(self::LOGGER)));
         $this->app->singleton(KeyProviderInterface::class, static fn(Container $app): KeyProviderInterface => StaticKeyProvider::fromConfig($app->make(Config::class)));
-        $this->app->singleton(TransportInterface::class, static function (Container $app): TransportInterface {
-            $client = self::block($app, 'http')['client'] ?? null;
-
-            return new LazyTransport(static function () use ($app, $client): TransportInterface {
-                $timeout = $app->make(Config::class)->httpTimeout;
-                if (!\is_string($client) || $client === '') {
-                    return Psr18Transport::discover(timeout: $timeout);
-                }
-                $instance = $app->make($client);
-                if (!$instance instanceof PsrClient) {
-                    throw new ConfigurationException(\sprintf('indexnow.http.client "%s" resolves to %s, which is not a PSR-18 client.', $client, get_debug_type($instance)));
-                }
-
-                return Psr18Transport::discover($instance, $timeout);
-            });
-        });
+        // http.client: a container binding or class of a PSR-18 client; resolved on the first request only.
+        $this->app->singleton(TransportInterface::class, static fn(Container $app): TransportInterface => TransportFactory::lazy($app->make(Config::class), static fn(string $id): mixed => $app->make($id)));
         $this->app->singleton(UrlNormalizerInterface::class, static fn(Container $app): UrlNormalizerInterface => new UrlNormalizer($app->make(Config::class)->baseUrl, $app->make(Config::class)->maxUrlLength));
-        $this->app->singleton(ThrottleInterface::class, static fn(Container $app): ThrottleInterface => new TokenBucket($app->make(Config::class)->throttleMaxRequestsPerMinute, logger: $app->make(self::LOGGER)));
+        $this->app->singleton(ThrottleInterface::class, static fn(Container $app): ThrottleInterface => TokenBucket::fromConfig($app->make(Config::class), $app->make(self::LOGGER)));
         $this->app->singleton(ClientInterface::class, static fn(Container $app): ClientInterface => new Client($app->make(TransportInterface::class), $app->make(KeyProviderInterface::class), $app->make(Config::class), $app->make(self::LOGGER), $app->make(ThrottleInterface::class), $app->make(UrlNormalizerInterface::class)));
-        $this->app->singleton(DebounceStoreInterface::class, static function (Container $app): DebounceStoreInterface {
-            $store = self::block($app, 'debounce')['store'] ?? 'cache';
-            $store = \is_string($store) && $store !== '' ? $store : 'cache';
-
-            return match ($store) {
-                'memory' => new MemoryDebounceStore(),
-                'none' => new NullDebounceStore(),
-                default => new Psr16DebounceStore($app->make(CacheFactory::class)->store($store === 'cache' ? null : $store), $app->make(Config::class)->debounceKeyPrefix),
-            };
-        });
+        // debounce.store: "cache" (the default store), a store name, "memory" or "none".
+        $this->app->singleton(DebounceStoreInterface::class, static fn(Container $app): DebounceStoreInterface => DebounceStoreFactory::fromConfig(
+            $app->make(Config::class),
+            static fn(string $store): mixed => $app->make(CacheFactory::class)->store($store === self::DEFAULT_DEBOUNCE_STORE ? null : $store),
+            self::DEFAULT_DEBOUNCE_STORE,
+        ));
         $this->app->singleton(SubmitterInterface::class, static fn(Container $app): SubmitterInterface => new Submitter($app->make(ClientInterface::class), $app->make(Config::class), $app->make(DebounceStoreInterface::class), $app->make(self::LOGGER), $app->make(UrlNormalizerInterface::class)));
-        $this->app->scoped(CollectorInterface::class, static fn(Container $app): CollectorInterface => new Collector($app->make(self::LOGGER), $app->make(Config::class)->collectorDetectLeaks, $app->make(Config::class)->logUrls));
-        $this->app->singleton(KeyFileResponder::class, static fn(Container $app): KeyFileResponder => new KeyFileResponder($app->make(KeyProviderInterface::class), $app->make(Config::class)->serveKeyFile));
+        $this->app->scoped(CollectorInterface::class, static fn(Container $app): CollectorInterface => Collector::fromConfig($app->make(Config::class), $app->make(self::LOGGER)));
+        $this->app->singleton(KeyFileResponder::class, static fn(Container $app): KeyFileResponder => KeyFileResponder::fromConfig($app->make(Config::class), $app->make(KeyProviderInterface::class)));
         $this->app->singleton(IndexNowKit::class, static fn(Container $app): IndexNowKit => new IndexNowKit(
             config: $app->make(Config::class),
             submitter: $app->make(SubmitterInterface::class),
@@ -212,12 +195,24 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         });
         $this->app->alias(LaravelRouteUrlResolver::class, RouteUrlResolverInterface::class);
         $this->app->alias(LaravelRouteUrlResolver::class, RouteBindingFieldsInterface::class);
-        $this->app->singleton(ResolverLocatorInterface::class, static fn(Container $app): ResolverLocatorInterface => new ContainerResolverLocator($app));
-        $this->app->singleton(UrlResolverInterface::class, static function (Container $app): UrlResolverInterface {
-            $config = $app->make(Config::class);
+        // #[IndexNow(resolver: ...)]: a container binding, or any class the container can build.
+        $this->app->singleton(ResolverLocatorInterface::class, static fn(Container $app): ResolverLocatorInterface => new ArrayResolverLocator(
+            [],
+            locate: static function (string $id) use ($app): ?object {
+                if (!$app->bound($id) && !class_exists($id)) {
+                    return null;
+                }
+                try {
+                    $resolver = $app->make($id);
+                } catch (BindingResolutionException $e) {
+                    throw new ConfigurationException(\sprintf('IndexNow URL resolver "%s" cannot be built by the container: %s', $id, $e->getMessage()), 0, $e);
+                }
 
-            return new AttributeUrlResolver($app->make(AttributeReaderInterface::class), $app->make(RouteUrlResolverInterface::class), $app->make(ResolverLocatorInterface::class), $app->make(self::LOGGER), $config->resolverMaxViaDepth, $config->resolverMaxViaFanout, $config->localeHosts);
-        });
+                return \is_object($resolver) ? $resolver : null;
+            },
+            hint: 'a container binding',
+        ));
+        $this->app->singleton(UrlResolverInterface::class, static fn(Container $app): UrlResolverInterface => AttributeUrlResolver::fromConfig($app->make(Config::class), $app->make(AttributeReaderInterface::class), $app->make(RouteUrlResolverInterface::class), $app->make(ResolverLocatorInterface::class), $app->make(self::LOGGER)));
         $this->app->singleton(GuardedUrlResolver::class, static fn(Container $app): GuardedUrlResolver => new GuardedUrlResolver($app->make(UrlResolverInterface::class), $app->make(AttributeReaderInterface::class), $app->make(self::LOGGER)));
     }
 
@@ -225,20 +220,15 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     {
         $this->app->singleton(DispatcherInterface::class, static function (Container $app): DispatcherInterface {
             $config = $app->make(Config::class);
-            if (!$config->enabled || $config->dispatch === 'none') {
-                return new NullDispatcher();
-            }
-            if ($config->dispatch === 'queue') {
-                $queue = self::raw($app)['queue'] ?? [];
-                $queue = \is_array($queue) ? $queue : [];
+
+            return DispatcherFactory::fromConfig($config, $app->make(SubmitterInterface::class), $app->make(self::LOGGER), static function () use ($app, $config): DispatcherInterface {
+                $queue = self::block($app, 'queue');
                 $connection = $queue['connection'] ?? null;
                 $name = $queue['queue'] ?? null;
                 $delay = $queue['delay'] ?? 0;
 
                 return new QueueDispatcher($app->make(BusDispatcher::class), $config, $app->make(self::LOGGER), \is_string($connection) ? $connection : null, \is_string($name) ? $name : null, is_numeric($delay) ? (int) $delay : 0);
-            }
-
-            return new SyncDispatcher($app->make(SubmitterInterface::class), $app->make(self::LOGGER), $config->logUrls);
+            });
         });
     }
 
@@ -256,18 +246,13 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         });
         $this->app->singleton(SitemapSourceInterface::class, static fn(Container $app): SitemapSourceInterface => SitemapReader::fromConfig($app->make(SitemapConfig::class), $app->make(TransportInterface::class), $app->make(self::LOGGER)));
         $this->app->singleton(QueueCheck::class);
-        $this->app->singleton(CacheStoreCheck::class);
+        $this->app->singleton(DebounceStoreCheck::class, static fn(Container $app): DebounceStoreCheck => new DebounceStoreCheck($app->make(Config::class), $app->make(CacheStoreProbe::class)(...), self::DEFAULT_DEBOUNCE_STORE));
         $this->app->singleton(SitemapSpoolCheck::class, static fn(Container $app): SitemapSpoolCheck => new SitemapSpoolCheck($app->make(SitemapConfig::class)));
         $this->app->singleton(EloquentCheck::class, static fn(Container $app): EloquentCheck => new EloquentCheck((bool) (self::block($app, 'eloquent')['enabled'] ?? true) && $app->make(Config::class)->enabled));
-        $this->app->tag([QueueCheck::class, CacheStoreCheck::class, SitemapSpoolCheck::class, EloquentCheck::class], self::CHECK_TAG);
+        $this->app->tag([QueueCheck::class, DebounceStoreCheck::class, SitemapSpoolCheck::class, EloquentCheck::class], self::CHECK_TAG);
         $this->registerConsole();
         $this->app->singleton(CheckerInterface::class, static fn(Container $app): CheckerInterface => new Checker($app->make(Config::class), $app->make(KeyProviderInterface::class), $app->make(TransportInterface::class), $app->tagged(self::CHECK_TAG)));
-        $this->app->singleton(KeyFileController::class, static function (Container $app): KeyFileController {
-            $keyFile = self::raw($app)['key_file'] ?? [];
-            $maxAge = \is_array($keyFile) ? ($keyFile['cache_max_age'] ?? null) : null;
-
-            return new KeyFileController($app->make(KeyFileResponder::class), is_numeric($maxAge) ? (int) $maxAge : KeyFileResponder::DEFAULT_MAX_AGE, $app->make(Config::class)->hosts !== []);
-        });
+        $this->app->singleton(KeyFileController::class, static fn(Container $app): KeyFileController => new KeyFileController($app->make(KeyFileResponder::class), $app->make(Config::class)->keyFileMaxAge, $app->make(Config::class)->hosts !== []));
     }
 
     /**
@@ -309,6 +294,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
 
     private function registerKeyFileRoute(): void
     {
+        // Raw values on purpose: boot() must not build the Config (tests and packages bind their own after boot).
         $raw = self::raw($this->app);
         $keyFile = \is_array($raw['key_file'] ?? null) ? $raw['key_file'] : [];
         $enabled = \is_bool($raw['serve_key_file'] ?? null) ? $raw['serve_key_file'] : (bool) ($keyFile['enabled'] ?? true);

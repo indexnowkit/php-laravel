@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace IndexNowKit\Laravel\Tests\Feature;
 
-use Illuminate\Contracts\Cache\Factory;
 use Illuminate\Contracts\Config\Repository;
+use IndexNowKit\Check\CheckInterface;
 use IndexNowKit\Check\CheckLevel;
 use IndexNowKit\Check\CheckReport;
-use IndexNowKit\Laravel\Check\CacheStoreCheck;
+use IndexNowKit\Check\DebounceStoreCheck;
+use IndexNowKit\Config;
+use IndexNowKit\Laravel\Check\CacheStoreProbe;
 use IndexNowKit\Laravel\Check\QueueCheck;
+use IndexNowKit\Laravel\IndexNowKitServiceProvider;
 use IndexNowKit\Laravel\Tests\LaravelTestCase;
+use IndexNowKit\Laravel\Tests\Support\Fixtures;
 use IndexNowKit\Sitemap\Check\SitemapSpoolCheck;
 use IndexNowKit\Sitemap\SitemapConfig;
 use PHPUnit\Framework\Attributes\TestDox;
@@ -50,32 +54,24 @@ final class ChecksTest extends LaravelTestCase
         self::assertStringContainsString('synchronously', $this->messages($check)[0]);
     }
 
-    #[TestDox('debounce: off, memory, none, a usable store and an unusable store each get their line')]
-    public function testCacheStoreCheck(): void
+    #[TestDox('debounce: off, memory, none, a usable store and an unusable store each get their line (core DebounceStoreCheck + the Laravel cache probe)')]
+    public function testDebounceStoreCheck(): void
     {
-        $config = $this->app->make(Repository::class);
-        $check = new CacheStoreCheck($config, $this->app->make(Factory::class));
+        $probe = $this->app->make(CacheStoreProbe::class)(...);
+        $check = static fn(array $debounce): DebounceStoreCheck => new DebounceStoreCheck(Config::fromArray(['key' => Fixtures::KEY, 'debounce' => $debounce]), $probe, IndexNowKitServiceProvider::DEFAULT_DEBOUNCE_STORE);
 
-        $config->set('indexnow.debounce.per_url', 0);
-        self::assertStringContainsString('off (debounce.per_url = 0)', $this->messages($check)[0]);
+        self::assertStringContainsString('off (debounce.per_url = 0)', $this->messages($check(['per_url' => 0]))[0]);
+        self::assertSame([CheckLevel::Warning], $this->levels($check(['per_url' => 600, 'store' => 'memory'])));
+        self::assertStringContainsString('no store (debounce.store = none)', $this->messages($check(['per_url' => 600, 'store' => 'none']))[0]);
 
-        $config->set('indexnow.debounce.per_url', 600);
-        $config->set('indexnow.debounce.store', 'memory');
-        self::assertSame([CheckLevel::Warning], $this->levels($check));
+        self::assertSame([CheckLevel::Ok], $this->levels($check(['per_url' => 600])), 'unset = the default cache store');
+        self::assertStringContainsString('600s per URL, shared through cache store', $this->messages($check(['per_url' => 600]))[0]);
+        self::assertStringContainsString('cache store "array"', $this->messages($check(['per_url' => 600, 'store' => 'array']))[0]);
 
-        $config->set('indexnow.debounce.store', 'none');
-        self::assertStringContainsString('off (debounce.store = none)', $this->messages($check)[0]);
-
-        $config->set('indexnow.debounce.store', 'cache');
-        self::assertSame([CheckLevel::Ok], $this->levels($check));
-        self::assertStringContainsString('600s per URL, shared through cache store', $this->messages($check)[0]);
-
-        $config->set('indexnow.debounce.store', 'array');
-        self::assertStringContainsString('cache store "array"', $this->messages($check)[0]);
-
-        $config->set('indexnow.debounce.store', 'missing-store');
-        self::assertSame([CheckLevel::Error], $this->levels($check));
-        self::assertStringContainsString('is not usable', $this->messages($check)[0]);
+        $failing = $check(['per_url' => 600, 'store' => 'missing-store']);
+        self::assertSame([CheckLevel::Error], $this->levels($failing));
+        self::assertStringContainsString('is not usable', $this->messages($failing)[0]);
+        self::assertInstanceOf(DebounceStoreCheck::class, $this->app->make(DebounceStoreCheck::class), 'the provider binds the check with the probe');
     }
 
     #[TestDox('sitemap spool: disabled prints nothing; memory, writable disk, unwritable disk with auto/disk')]
@@ -97,7 +93,7 @@ final class ChecksTest extends LaravelTestCase
     /**
      * @return list<CheckLevel>
      */
-    private function levels(QueueCheck|CacheStoreCheck|SitemapSpoolCheck $check): array
+    private function levels(CheckInterface $check): array
     {
         $report = new CheckReport();
         $check->check($report);
@@ -108,7 +104,7 @@ final class ChecksTest extends LaravelTestCase
     /**
      * @return list<string>
      */
-    private function messages(QueueCheck|CacheStoreCheck|SitemapSpoolCheck $check): array
+    private function messages(CheckInterface $check): array
     {
         $report = new CheckReport();
         $check->check($report);
