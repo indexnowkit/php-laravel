@@ -297,7 +297,11 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         // Raw values on purpose: boot() must not build the Config (tests and packages bind their own after boot).
         $raw = self::raw($this->app);
         $keyFile = \is_array($raw['key_file'] ?? null) ? $raw['key_file'] : [];
-        $enabled = \is_bool($raw['serve_key_file'] ?? null) ? $raw['serve_key_file'] : (bool) ($keyFile['enabled'] ?? true);
+        try {
+            $enabled = Config::serveKeyFileFrom($raw);
+        } catch (ConfigurationException) {
+            return; // the Config build logs the broken value; no route until it is fixed
+        }
         // @phpstan-ignore staticMethod.dynamicCall (larastan models routesAreCached() as static through the facade @mixin)
         if (!$enabled || ($this->app instanceof CachesRoutes && $this->app->routesAreCached())) {
             return;
