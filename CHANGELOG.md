@@ -3,7 +3,7 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
-## [0.5.0] — 2026-09-04
+## [0.5.0] — 2026-09-05
 
 The core 0.4 "adapter kit" release: the package is built on the core's factories and `Adapter\ConfigFactory`, and
 the sitemap reader is `indexnowkit/sitemap` (required by this package, installed transitively). Configuration keys,
