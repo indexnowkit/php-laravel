@@ -26,7 +26,7 @@ The service provider registers one container binding per core interface. Replace
 | `IndexNowKit\IndexNowKit` | the core facade | — |
 | `IndexNowKit\Key\KeyFileResponder` | over the key provider | — |
 | `IndexNowKit\Check\CheckerInterface` | `Checker` with the tagged checks | — |
-| `IndexNowKit\Sitemap\SitemapSourceInterface` | `SitemapReader` | filter, rewrite or replace the sitemap source |
+| `IndexNowKit\Sitemap\SitemapSourceInterface` | `SitemapReader` | filter, rewrite or replace the sitemap source (bound only with `indexnowkit/sitemap` installed) |
 | `IndexNowKit\Laravel\IndexNowManager` | facade root | — |
 | `IndexNowKit\Laravel\Eloquent\IndexNowObserver` (singleton) | the observer | — |
 | `IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface` | `LaravelRouteUrlResolver` | which model field a `{post:slug}` parameter binds to (drives rename detection) when routes come from elsewhere |

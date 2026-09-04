@@ -23,7 +23,9 @@ use IndexNowKit\Attribute\ParamExtractor;
 use IndexNowKit\Attribute\RuleRegistry;
 use IndexNowKit\Check\Checker;
 use IndexNowKit\Check\CheckerInterface;
+use IndexNowKit\Check\CheckLevel;
 use IndexNowKit\Check\DebounceStoreCheck;
+use IndexNowKit\Check\StaticCheck;
 use IndexNowKit\Client;
 use IndexNowKit\ClientInterface;
 use IndexNowKit\Collector\Collector;
@@ -55,7 +57,7 @@ use IndexNowKit\Laravel\Console\CheckCommand;
 use IndexNowKit\Laravel\Console\ExplainCommand;
 use IndexNowKit\Laravel\Console\KeyGenerateCommand;
 use IndexNowKit\Laravel\Console\ModelLoader;
-use IndexNowKit\Laravel\Console\SitemapCommand;
+use IndexNowKit\Laravel\Console\SitemapNotInstalledCommand;
 use IndexNowKit\Laravel\Console\SubmitCommand;
 use IndexNowKit\Laravel\Console\SubmitModelCommand;
 use IndexNowKit\Laravel\Eloquent\EloquentSubjectReader;
@@ -63,12 +65,9 @@ use IndexNowKit\Laravel\Eloquent\IndexNowObserver;
 use IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface;
 use IndexNowKit\Laravel\Http\KeyFileController;
 use IndexNowKit\Laravel\Queue\QueueDispatcher;
+use IndexNowKit\Laravel\Sitemap\SitemapServices;
+use IndexNowKit\Laravel\Sitemap\SitemapSupport;
 use IndexNowKit\Laravel\Url\LaravelRouteUrlResolver;
-use IndexNowKit\Sitemap\Check\SitemapSpoolCheck;
-use IndexNowKit\Sitemap\Console\SitemapRunner;
-use IndexNowKit\Sitemap\SitemapConfig;
-use IndexNowKit\Sitemap\SitemapReader;
-use IndexNowKit\Sitemap\SitemapSourceInterface;
 use IndexNowKit\Submitter;
 use IndexNowKit\SubmitterInterface;
 use IndexNowKit\Throttle\ThrottleInterface;
@@ -90,7 +89,8 @@ use Psr\Log\NullLogger;
  * any piece with `$this->app->bind()`; the bodies are the core's factories (`Http\TransportFactory`,
  * `Debounce\DebounceStoreFactory`, `Dispatch\DispatcherFactory`, the `fromConfig()` constructors). Registers the
  * observer support, the key file route, the artisan commands and the flush points (app()->terminating(), queue
- * JobProcessed).
+ * JobProcessed). The sitemap bindings come from `Sitemap\SitemapServices` when the optional `indexnowkit/sitemap`
+ * is installed ({@see SitemapSupport}); without it `indexnow:sitemap` is a stub and `indexnow:check` prints one line.
  */
 final class IndexNowKitServiceProvider extends ServiceProvider
 {
@@ -102,6 +102,8 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     public const CONFIG_TAG = 'indexnow-config';
     /** The debounce store when `debounce.store` is unset: the application's default cache store. */
     public const DEFAULT_DEBOUNCE_STORE = 'cache';
+    /** Container id of the `check` line printed without `indexnowkit/sitemap`. */
+    public const SITEMAP_MISSING_CHECK = 'indexnowkit.check.sitemap_missing';
 
     public function register(): void
     {
@@ -136,7 +138,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     {
         $this->publishes([__DIR__ . '/../config/indexnow.php' => $this->app->configPath('indexnow.php')], self::CONFIG_TAG);
         if ($this->app->runningInConsole()) {
-            $this->commands([KeyGenerateCommand::class, CheckCommand::class, SubmitCommand::class, SubmitModelCommand::class, ExplainCommand::class, SitemapCommand::class]);
+            $this->commands([KeyGenerateCommand::class, CheckCommand::class, SubmitCommand::class, SubmitModelCommand::class, ExplainCommand::class, ...SitemapSupport::installed() ? SitemapServices::commands() : [SitemapNotInstalledCommand::class]]);
         }
         $this->registerKeyFileRoute();
 
@@ -234,22 +236,22 @@ final class IndexNowKitServiceProvider extends ServiceProvider
 
     private function registerDiagnostics(): void
     {
-        // The validated `sitemap` block; a broken value disables the sitemap command with a critical log line, like the core options.
-        $this->app->singleton(SitemapConfig::class, static function (Container $app): SitemapConfig {
-            try {
-                return SitemapConfig::fromArray(self::block($app, 'sitemap'));
-            } catch (ConfigurationException $e) {
-                $app->make(self::LOGGER)->critical('indexnow: invalid sitemap configuration, the sitemap command is disabled until it is fixed: {error} (run "php artisan indexnow:check")', ['error' => $e->getMessage(), 'exception' => $e]);
+        if (SitemapSupport::installed()) {
+            SitemapServices::register($this->app, self::LOGGER);
+            $sitemapCheck = SitemapServices::SPOOL_CHECK;
+        } else {
+            $this->app->singleton(self::SITEMAP_MISSING_CHECK, static function (Container $app): StaticCheck {
+                /** @var array{sitemap?: array<string, mixed>} $defaults */
+                $defaults = require __DIR__ . '/../config/indexnow.php';
 
-                return SitemapConfig::disabled();
-            }
-        });
-        $this->app->singleton(SitemapSourceInterface::class, static fn(Container $app): SitemapSourceInterface => SitemapReader::fromConfig($app->make(SitemapConfig::class), $app->make(TransportInterface::class), $app->make(self::LOGGER)));
+                return new StaticCheck(CheckLevel::Ok, SitemapSupport::checkLine(self::block($app, 'sitemap'), $defaults['sitemap'] ?? []));
+            });
+            $sitemapCheck = self::SITEMAP_MISSING_CHECK;
+        }
         $this->app->singleton(QueueCheck::class);
         $this->app->singleton(DebounceStoreCheck::class, static fn(Container $app): DebounceStoreCheck => new DebounceStoreCheck($app->make(Config::class), $app->make(CacheStoreProbe::class)(...), self::DEFAULT_DEBOUNCE_STORE));
-        $this->app->singleton(SitemapSpoolCheck::class, static fn(Container $app): SitemapSpoolCheck => new SitemapSpoolCheck($app->make(SitemapConfig::class)));
         $this->app->singleton(EloquentCheck::class, static fn(Container $app): EloquentCheck => new EloquentCheck((bool) (self::block($app, 'eloquent')['enabled'] ?? true) && $app->make(Config::class)->enabled));
-        $this->app->tag([QueueCheck::class, DebounceStoreCheck::class, SitemapSpoolCheck::class, EloquentCheck::class], self::CHECK_TAG);
+        $this->app->tag([QueueCheck::class, DebounceStoreCheck::class, $sitemapCheck, EloquentCheck::class], self::CHECK_TAG);
         $this->registerConsole();
         $this->app->singleton(CheckerInterface::class, static fn(Container $app): CheckerInterface => new Checker($app->make(Config::class), $app->make(KeyProviderInterface::class), $app->make(TransportInterface::class), $app->tagged(self::CHECK_TAG)));
         $this->app->singleton(KeyFileController::class, static fn(Container $app): KeyFileController => new KeyFileController($app->make(KeyFileResponder::class), $app->make(Config::class)->keyFileMaxAge, $app->make(Config::class)->hosts !== []));
@@ -281,14 +283,6 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             $app->make(ThrottleInterface::class),
             $app->make(UrlNormalizerInterface::class),
             $app->make(self::LOGGER),
-        ));
-        $this->app->singleton(SitemapRunner::class, static fn(Container $app): SitemapRunner => new SitemapRunner(
-            $app->make(IndexNowKit::class),
-            $app->make(SitemapSourceInterface::class),
-            $app->make(SubmitterFactoryInterface::class),
-            $app->make(SitemapConfig::class)->url,
-            $app->make(ResultFormatterInterface::class),
-            sitemapUrlOption: 'indexnow.sitemap.url',
         ));
     }
 

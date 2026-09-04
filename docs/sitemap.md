@@ -1,5 +1,15 @@
 # Sitemaps
 
+```bash
+composer require indexnowkit/sitemap   # optional: the indexnow:sitemap command
+```
+
+The reader lives in the optional [`indexnowkit/sitemap`](https://github.com/indexnowkit/php/tree/main/packages/sitemap)
+package. Without it `indexnow:sitemap` exists as a stub that prints `indexnowkit/sitemap is not installed: composer
+require indexnowkit/sitemap` and exits 1 (a scheduled run gets a sentence, not "command not found"), `indexnow:check`
+prints `sitemap: not installed (…)`, the `sitemap` block of the config is ignored, and nothing else changes or is
+logged.
+
 `php artisan indexnow:sitemap` submits every URL of a sitemap, a sitemap index, a text sitemap or a gzipped one,
 reading it as a stream and sending every `batch.max_urls` URLs while it is still being read. A million-URL index
 never has to fit in memory.

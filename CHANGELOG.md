@@ -3,6 +3,27 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [0.7.0] — 2026-09-05
+
+`indexnowkit/sitemap` is optional again (docs/spec/16, wave C): the package suggests it instead of requiring it.
+Configuration keys, command names, bindings and the facade do not change.
+
+### Changed
+
+- **`indexnowkit/sitemap` is no longer installed automatically.** If you use `indexnow:sitemap`, run
+  `composer require indexnowkit/sitemap`; otherwise, after `composer update`, the command reports that the package is
+  missing and exits with code 1. Requires `indexnowkit/core ^0.5.1`.
+- Without the package: `indexnow:sitemap` is `Console\SitemapNotInstalledCommand` (same name, every argument and
+  option accepted and ignored, prints `indexnowkit/sitemap is not installed: composer require indexnowkit/sitemap`,
+  exit 1); `indexnow:check` prints `sitemap: not installed (composer require indexnowkit/sitemap)`, or `sitemap: not
+  installed, the sitemap block in the configuration is ignored (…)` when `config/indexnow.php` changed the block from
+  the package defaults; `Config\ConfigFactory` ignores the `sitemap` block as a whole (no "unknown option" warning);
+  `SitemapConfig`, `SitemapSourceInterface`, `SitemapSpoolCheck` and `SitemapRunner` are not bound. Nothing is logged
+  at boot or on a request.
+- The sitemap bindings moved to `Sitemap\SitemapServices`, registered only when `Sitemap\SitemapSupport::installed()`
+  holds (the predicate; `@internal` `SitemapSupport::$installed` forces it in tests). Only relevant if you reach into
+  the provider yourself.
+
 ## [0.6.0] — 2026-09-05
 
 The core 0.5 "adapter kit" release, second wave: the observer, the queue job and the commands are built on the

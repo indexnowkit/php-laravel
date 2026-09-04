@@ -132,7 +132,8 @@ return [
         'enabled' => true,
     ],
 
-    // Sitemap reader behind php artisan indexnow:sitemap.
+    // Sitemap reader behind php artisan indexnow:sitemap. Needs indexnowkit/sitemap (composer require
+    // indexnowkit/sitemap); without the package this block is ignored and indexnow:check says so.
     'sitemap' => [
         'enabled' => true,
         // Default sitemap URL (null = <base_url>/sitemap.xml).

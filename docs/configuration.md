@@ -120,6 +120,9 @@ with messages prefixed `indexnow:`.
 
 ### `sitemap`
 
+Needs `indexnowkit/sitemap` (`composer require indexnowkit/sitemap`); without the package the block is ignored and
+`indexnow:check` says so.
+
 ```php
 'sitemap' => [
     'enabled' => true,             // false = no indexnow:sitemap command

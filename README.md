@@ -23,6 +23,7 @@ Indexing API is restricted to `JobPosting` / `BroadcastEvent`. This package will
 
 ```bash
 composer require indexnowkit/laravel
+composer require indexnowkit/sitemap               # optional: the indexnow:sitemap command
 php artisan vendor:publish --tag=indexnow-config   # config/indexnow.php (optional, every key has a default)
 php artisan indexnow:key:generate --write-env      # adds INDEXNOW_KEY to .env
 php artisan indexnow:check                         # config, key file reachable, queue, cache
@@ -128,9 +129,17 @@ Run it after every key rotation and after every deployment that touches the conf
 | `indexnow:sitemap [sitemap]` | `--changed-since="1 day"` · `--allow-foreign-hosts` · `-f, --force` · `--dry-run` · `--json` |
 | `indexnow:key:generate` | `-l, --length` · `--alphanumeric` · `--write-env[=FILE]` (default `.env`) · `--force` rotate |
 
-`<model>` accepts an FQCN or a short `App\Models` name. `indexnow:sitemap` with no argument reads
-`indexnow.sitemap.url`, else `<base_url>/sitemap.xml`; a local path works too. Schedule it:
-`Schedule::command('indexnow:sitemap --changed-since="1 day"')->daily()`.
+`<model>` accepts an FQCN or a short `App\Models` name.
+
+### Sitemaps
+
+`composer require indexnowkit/sitemap   # optional: the indexnow:sitemap command`
+
+`indexnow:sitemap` with no argument reads `indexnow.sitemap.url`, else `<base_url>/sitemap.xml`; a local path works
+too. Schedule it: `Schedule::command('indexnow:sitemap --changed-since="1 day"')->daily()`. Without the package
+everything else works unchanged: `indexnow:sitemap` says `indexnowkit/sitemap is not installed: composer require
+indexnowkit/sitemap` and exits 1, `indexnow:check` prints `sitemap: not installed (…)`, the `sitemap` block of
+`config/indexnow.php` is ignored. Nothing is logged about it. Details: [docs/sitemap.md](docs/sitemap.md).
 
 ## Configuration
 

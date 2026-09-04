@@ -7,7 +7,8 @@ namespace IndexNowKit\Laravel\Config;
 use IndexNowKit\Adapter\ConfigFactory as CoreConfigFactory;
 use IndexNowKit\Config;
 use IndexNowKit\Exception\ConfigurationException;
-use IndexNowKit\Sitemap\SitemapConfig;
+use IndexNowKit\Laravel\Sitemap\SitemapServices;
+use IndexNowKit\Laravel\Sitemap\SitemapSupport;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -20,8 +21,9 @@ use Psr\Log\NullLogger;
 final class ConfigFactory
 {
     /**
-     * Keys this package owns on top of Config::OPTIONS and SitemapConfig::OPTIONS, dotted-path form only: a bare
-     * block name in this list would stop unknownOptions() from checking the keys inside the block.
+     * Keys this package owns on top of Config::OPTIONS (and SitemapConfig::OPTIONS when indexnowkit/sitemap is
+     * installed), dotted-path form only: a bare block name in this list would stop unknownOptions() from checking
+     * the keys inside the block.
      */
     public const LARAVEL_OPTIONS = [
         'queue.connection', 'queue.queue', 'queue.delay',
@@ -33,13 +35,20 @@ final class ConfigFactory
 
     public const DISPATCH_MODES = ['queue', 'sync', 'none'];
 
+    /**
+     * Without indexnowkit/sitemap the `sitemap` block is ignored as a whole (no "unknown option" warning for a
+     * configuration written for the package); with it, its keys are owned and typos inside it are warned about.
+     */
     public static function factory(): CoreConfigFactory
     {
+        $sitemap = SitemapSupport::installed();
+
         return new CoreConfigFactory(
-            ownedOptions: [...self::LARAVEL_OPTIONS, ...SitemapConfig::OPTIONS],
+            ownedOptions: $sitemap ? [...self::LARAVEL_OPTIONS, ...SitemapServices::options()] : self::LARAVEL_OPTIONS,
             dispatchModes: self::DISPATCH_MODES,
             needBaseUrl: ['queue'],
             checkCommand: 'php artisan indexnow:check',
+            ignoreBlocks: $sitemap ? [] : ['sitemap'],
         );
     }
 

@@ -23,6 +23,7 @@
 
 ```bash
 composer require indexnowkit/laravel
+composer require indexnowkit/sitemap               # опционально: команда indexnow:sitemap
 php artisan vendor:publish --tag=indexnow-config   # config/indexnow.php (необязательно: у каждого ключа есть дефолт)
 php artisan indexnow:key:generate --write-env      # добавит INDEXNOW_KEY в .env
 php artisan indexnow:check                         # конфиг, доступность файла ключа, очередь, кэш
@@ -126,9 +127,17 @@ php artisan indexnow:check --live   # плюс реальный пробный �
 | `indexnow:sitemap [sitemap]` | `--changed-since="1 day"` · `--allow-foreign-hosts` · `-f, --force` · `--dry-run` · `--json` |
 | `indexnow:key:generate` | `-l, --length` · `--alphanumeric` · `--write-env[=FILE]` (по умолчанию `.env`) · `--force` ротация |
 
-`<model>` — FQCN или короткое имя в `App\Models`. `indexnow:sitemap` без аргумента читает `indexnow.sitemap.url`,
-иначе `<base_url>/sitemap.xml`; локальный путь тоже работает. Планировщик:
-`Schedule::command('indexnow:sitemap --changed-since="1 day"')->daily()`.
+`<model>` — FQCN или короткое имя в `App\Models`.
+
+### Sitemap
+
+`composer require indexnowkit/sitemap   # опционально: команда indexnow:sitemap`
+
+`indexnow:sitemap` без аргумента читает `indexnow.sitemap.url`, иначе `<base_url>/sitemap.xml`; локальный путь тоже
+работает. Планировщик: `Schedule::command('indexnow:sitemap --changed-since="1 day"')->daily()`. Без пакета всё
+остальное работает как прежде: `indexnow:sitemap` отвечает `indexnowkit/sitemap is not installed: composer require
+indexnowkit/sitemap` и завершается с кодом 1, `indexnow:check` печатает `sitemap: not installed (…)`, блок `sitemap`
+в `config/indexnow.php` игнорируется. В логи ничего не пишется. Подробнее: [docs/sitemap.md](docs/sitemap.md).
 
 ## Конфигурация
 

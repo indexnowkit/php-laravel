@@ -7,6 +7,7 @@ namespace IndexNowKit\Laravel\Tests\Unit;
 use IndexNowKit\Config;
 use IndexNowKit\Exception\ConfigurationException;
 use IndexNowKit\Laravel\Config\ConfigFactory;
+use IndexNowKit\Laravel\Sitemap\SitemapSupport;
 use IndexNowKit\Testing\ArrayLogger;
 use PHPUnit\Framework\Attributes\TestDox;
 use PHPUnit\Framework\TestCase;
@@ -93,5 +94,21 @@ final class ConfigFactoryTest extends TestCase
 
         self::assertTrue($config->enabled);
         self::assertTrue($config->dryRun);
+    }
+
+    #[TestDox('without indexnowkit/sitemap the sitemap block is ignored as a whole: no unknown-option warning for it, the other blocks are still checked')]
+    public function testSitemapBlockIsIgnoredWithoutThePackage(): void
+    {
+        SitemapSupport::$installed = false;
+        try {
+            $logger = new ArrayLogger();
+            $factory = ConfigFactory::factory();
+            self::assertSame(['key_file.enabld'], $factory->unknownOptions(['key' => self::KEY, 'key_file' => ['enabld' => false], 'sitemap' => ['spol' => 'memory', 'enabled' => true]]));
+            self::assertTrue(ConfigFactory::create(['key' => self::KEY, 'sitemap' => ['spol' => 'memory']], 'production', $logger)->enabled);
+            self::assertSame([], $logger->messages('warning'));
+        } finally {
+            SitemapSupport::$installed = null;
+        }
+        self::assertSame(['sitemap.spol'], ConfigFactory::factory()->unknownOptions(['key' => self::KEY, 'sitemap' => ['spol' => 'memory']]), 'with the package the keys inside the block are owned');
     }
 }
