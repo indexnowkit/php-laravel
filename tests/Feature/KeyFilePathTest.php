@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace IndexNowKit\Laravel\Tests\Feature;
 
 use IndexNowKit\Laravel\Tests\LaravelTestCase;
+use IndexNowKit\Testing\KeyFileAssertions;
 use PHPUnit\Framework\Attributes\TestDox;
 
 final class KeyFilePathTest extends LaravelTestCase
@@ -22,9 +23,7 @@ final class KeyFilePathTest extends LaravelTestCase
         self::assertSame(['web'], $route->middleware());
 
         $response = $this->get('/.well-known/' . self::KEY . '.txt');
-        $response->assertOk();
-        $response->assertHeader('Cache-Control', 'max-age=60, public');
-        self::assertFalse($response->headers->has('Vary'));
-        $this->get('/' . self::KEY . '.txt')->assertNotFound();
+        KeyFileAssertions::assertKeyFileResponse($response->getStatusCode(), $response->headers->all(), (string) $response->getContent(), self::KEY, 60, expectVaryHost: false);
+        KeyFileAssertions::assertNotServed($this->get('/' . self::KEY . '.txt')->getStatusCode());
     }
 }

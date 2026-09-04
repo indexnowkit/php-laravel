@@ -8,6 +8,7 @@ use Illuminate\Contracts\Console\Kernel;
 use IndexNowKit\Http\Response;
 use IndexNowKit\Laravel\Tests\Fixtures\Post;
 use IndexNowKit\Laravel\Tests\LaravelTestCase;
+use IndexNowKit\Testing\CheckOutputAssertions;
 use PHPUnit\Framework\Attributes\TestDox;
 use Symfony\Component\Console\Output\BufferedOutput;
 
@@ -20,8 +21,9 @@ final class CommandsTest extends LaravelTestCase
 
         [$code, $output] = $this->artisanCall('indexnow:check');
 
-        self::assertSame(0, $code, $output);
-        foreach (['www.example.com: key file OK', 'example.de: key file OK', 'engines: api', 'dispatch "sync"', 'debounce: off', 'spooled in memory', 'eloquent: models using IndexNowable', 'IndexNow is ready.'] as $expected) {
+        CheckOutputAssertions::assertExitCode(0, $code, $output);
+        CheckOutputAssertions::assertReady($output, 'www.example.com', 'example.de');
+        foreach (['engines: api', 'dispatch "sync"', 'debounce: off', 'spooled in memory', 'eloquent: models using IndexNowable'] as $expected) {
             self::assertStringContainsString($expected, $output);
         }
     }
@@ -34,9 +36,8 @@ final class CommandsTest extends LaravelTestCase
 
         [$code, $output] = $this->artisanCall('indexnow:check');
 
-        self::assertSame(1, $code);
-        self::assertStringContainsString('returned HTTP 403', $output);
-        self::assertStringContainsString('IndexNow is not ready', $output);
+        CheckOutputAssertions::assertExitCode(1, $code, $output);
+        CheckOutputAssertions::assertKeyFileHint($output, 403);
     }
 
     #[TestDox('indexnow:check --host limits the key file check to one host')]

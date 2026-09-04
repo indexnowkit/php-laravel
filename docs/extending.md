@@ -89,3 +89,13 @@ separate submitter through `SubmitterFactoryInterface`).
 `ParamExtractor::registerReader()`. It claims attributes, casts, accessors and relations (methods with a declared
 `Relation` return type, or already loaded); anything else falls to the core DSL (methods, properties). An accessor
 that matches nothing is a `ConfigurationException` logged at `error`, not a silent `null`.
+
+## What is the core's
+
+`IndexNowObserver` keeps only what is Eloquent's (the change set from `getChanges()`/`getOriginal()`, the previous
+state from `getRawOriginal()`, `Connection::afterCommit()`); guarding, logging and the URLs of a row about to be
+deleted are the core's `Hook\ObserverHelper`. `SubmitUrlsJob` is `Retry\WorkerOutcome` plus `release()`/`fail()`
+with the delay the `RetryPolicy` computes. The signatures of the artisan commands are rendered from
+`Console\Definitions` and `Sitemap\Console\Definitions` (`CommandDefinition::laravelSignature()`), so `php artisan
+indexnow:submit-model --help` matches the bundle and Yii2. A custom command over a core runner can build its
+signature the same way.

@@ -3,6 +3,27 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [0.6.0] — 2026-09-05
+
+The core 0.5 "adapter kit" release, second wave: the observer, the queue job and the commands are built on the
+core's `Hook\ObserverHelper`, `Retry\WorkerOutcome` and `Console\Definitions`. Configuration keys, command
+names, arguments, options, bindings and the facade do not change.
+
+### Changed
+
+- Requires `indexnowkit/core ^0.5` and `indexnowkit/sitemap ^0.1.1`.
+- `Eloquent\IndexNowObserver` on `Hook\ObserverHelper`: what is Eloquent's stays (change set, previous state,
+  `afterCommit()`); the log line for a resolve failure before a deletion is now the helper's
+  `indexnow: cannot resolve the URLs of {class}: {error}` (was "... before deletion: ...").
+- `Queue\SubmitUrlsJob` on `Retry\WorkerOutcome`: same behaviour (release with the policy's delay, fail after the
+  last attempt or on a final rejection), the log lines now carry the attempt:
+  `indexnow: {count} URL(s) of job {id} will be retried in {n}s (attempt {n})`.
+- The artisan signatures are rendered from `Console\Definitions` / `Sitemap\Console\Definitions`
+  (`CommandDefinition::laravelSignature()`): the same names, shortcuts, defaults and descriptions as the bundle and
+  Yii2. `SubmitModelCommand` and `ExplainCommand` take the `Console\Vocabulary` binding in their constructor
+  (resolved by the container). Two descriptions changed wording (`indexnow:submit-model`, the `model` argument).
+- Tests: H01–H05 assert through the core's `Testing\KeyFileAssertions` and `Testing\CheckOutputAssertions`.
+
 ## [0.5.0] — 2026-09-05
 
 The core 0.4 "adapter kit" release: the package is built on the core's factories and `Adapter\ConfigFactory`, and

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use IndexNowKit\Collector\CollectorInterface;
 use IndexNowKit\Laravel\Tests\Fixtures\Post;
 use IndexNowKit\Laravel\Tests\LaravelTestCase;
+use IndexNowKit\Testing\KeyFileAssertions;
 use PHPUnit\Framework\Attributes\TestDox;
 use RuntimeException;
 
@@ -46,27 +47,24 @@ final class HttpConformanceTest extends LaravelTestCase
     {
         $response = $this->get('/' . self::KEY . '.txt');
 
-        $response->assertOk();
-        $response->assertHeader('Content-Type', 'text/plain; charset=utf-8');
-        $response->assertHeader('Cache-Control', 'max-age=300, public');
-        $response->assertHeader('Vary', 'Host');
-        self::assertSame(self::KEY, $response->getContent());
+        KeyFileAssertions::assertKeyFileResponse($response->getStatusCode(), $response->headers->all(), (string) $response->getContent(), self::KEY, expectVaryHost: true);
         self::assertFalse($response->headers->has('Set-Cookie'), 'no web middleware: no session cookie on the key file');
     }
 
     #[TestDox('H01b the key file of another configured host is served only on that host')]
     public function testKeyFileIsPerHost(): void
     {
-        $this->get('/' . self::SECOND_KEY . '.txt')->assertNotFound();
-        $this->get('https://example.de/' . self::SECOND_KEY . '.txt')->assertOk();
-        $this->get('https://example.de/' . self::KEY . '.txt')->assertNotFound();
+        KeyFileAssertions::assertNotServed($this->get('/' . self::SECOND_KEY . '.txt')->getStatusCode());
+        $response = $this->get('https://example.de/' . self::SECOND_KEY . '.txt');
+        KeyFileAssertions::assertKeyFileResponse($response->getStatusCode(), $response->headers->all(), (string) $response->getContent(), self::SECOND_KEY, expectVaryHost: true);
+        KeyFileAssertions::assertNotServed($this->get('https://example.de/' . self::KEY . '.txt')->getStatusCode());
     }
 
     #[TestDox('H02 GET /other.txt -> 404')]
     public function testH02UnknownKey(): void
     {
-        $this->get('/abcdefghijklmnop.txt')->assertNotFound();
-        $this->get('/short.txt')->assertNotFound();
+        KeyFileAssertions::assertNotServed($this->get('/abcdefghijklmnop.txt')->getStatusCode());
+        KeyFileAssertions::assertNotServed($this->get('/short.txt')->getStatusCode());
     }
 
     #[TestDox('H06 model created in a request -> nothing sent before the response, POST on terminate')]

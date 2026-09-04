@@ -31,8 +31,8 @@
         "illuminate/queue": "^12.0 || ^13.0",
         "illuminate/routing": "^12.0 || ^13.0",
         "illuminate/support": "^12.0 || ^13.0",
-        "indexnowkit/core": "^0.4",
-        "indexnowkit/sitemap": "^0.1",
+        "indexnowkit/core": "^0.5",
+        "indexnowkit/sitemap": "^0.1.1",
         "psr/log": "^1.1 || ^2.0 || ^3.0"
     },
     "require-dev": {
@@ -72,7 +72,7 @@
             ]
         },
         "branch-alias": {
-            "dev-main": "0.5.x-dev"
+            "dev-main": "0.6.x-dev"
         }
     }
 }
