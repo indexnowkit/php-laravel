@@ -55,7 +55,12 @@
     },
     "scripts": {
         "test": "phpunit",
-        "stan": "phpstan analyse --memory-limit=1G"
+        "stan": "phpstan analyse --memory-limit=1G",
+        "ci:install:highest": "@composer update --no-interaction --prefer-dist",
+        "ci:install:laravel11": [
+            "@composer config policy.advisories.block false",
+            "@composer update --no-interaction --prefer-dist --with illuminate/support:^11.0 --with orchestra/testbench:^9.0"
+        ]
     },
     "config": {
         "sort-packages": true

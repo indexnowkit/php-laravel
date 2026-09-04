@@ -1,12 +1,16 @@
-# CI of the read-only split repository indexnowkit/php-laravel. Development happens in
-# https://github.com/indexnowkit/php (monorepo), whose CI covers all packages together.
-# Between releases indexnowkit/core ^0.2.2 resolves to its main branch (0.2.x-dev), hence minimum-stability dev.
+# CI of the read-only split repository indexnowkit/php-laravel. Development happens in the monorepo
+# https://github.com/indexnowkit/php, whose CI runs the same ci:install:* scripts of composer.json against the
+# working copy of the sibling packages. Between releases the indexnowkit/* constraints resolve to the
+# siblings' main branches, hence minimum-stability dev here.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   tests:
@@ -18,8 +22,8 @@ jobs:
         php: ['8.2', '8.3', '8.4', '8.5']
         deps: [highest]
         include:
-          - php: '8.3'
-            deps: laravel11
+          # Laravel 12 is what "highest" resolves to on PHP 8.2, Laravel 13 on 8.3+; the floor is a flavour of its own.
+          - { php: '8.3', deps: laravel11 }
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -27,14 +31,10 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: pdo_sqlite, intl
           coverage: none
-      - run: composer config minimum-stability dev && composer config prefer-stable true
-      - name: Install (highest)
-        if: matrix.deps == 'highest'
-        run: composer update --no-interaction --prefer-dist
-      # Laravel 11 is past its security-fix window and every release carries advisories, which Composer >= 2.9 refuses to install by default.
-      - name: Install (Laravel 11 / Testbench 9)
-        if: matrix.deps == 'laravel11'
-        run: composer config policy.advisories.block false && composer update --no-interaction --prefer-dist --with illuminate/support:^11.0 --with orchestra/testbench:^9.0
+      - name: Allow the unreleased sibling branches
+        run: composer config minimum-stability dev && composer config prefer-stable true
+      - name: Install (${{ matrix.deps }})
+        run: composer run ci:install:${{ matrix.deps }}
       - run: vendor/bin/phpunit
       - run: vendor/bin/phpstan analyse --memory-limit=1G
         if: matrix.deps == 'highest'
