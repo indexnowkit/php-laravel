@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace IndexNowKit\Laravel\Console;
 
 use Illuminate\Console\Command;
-use IndexNowKit\Console\SitemapOptions;
-use IndexNowKit\Console\SitemapRunner;
+use IndexNowKit\Console\ExitCode;
+use IndexNowKit\Sitemap\Console\SitemapOptions;
+use IndexNowKit\Sitemap\Console\SitemapRunner;
+use IndexNowKit\Sitemap\SitemapConfig;
 
 /**
  * Streams a sitemap (or sitemap index) and submits it in batches of `batch.max_urls`. The source is whatever the
@@ -24,8 +26,13 @@ final class SitemapCommand extends Command
 
     protected $description = 'Submit every URL of a sitemap (or only those with lastmod after --changed-since)';
 
-    public function handle(SitemapRunner $runner): int
+    public function handle(SitemapRunner $runner, SitemapConfig $config): int
     {
+        if (!$config->enabled) {
+            $this->getOutput()->error('sitemap.enabled is false.');
+
+            return ExitCode::INVALID;
+        }
         $sitemap = $this->argument('sitemap');
         $since = $this->option('changed-since');
 

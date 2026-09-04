@@ -22,7 +22,6 @@ use IndexNowKit\Attribute\ParamExtractor;
 use IndexNowKit\Attribute\RuleRegistry;
 use IndexNowKit\Check\Checker;
 use IndexNowKit\Check\CheckerInterface;
-use IndexNowKit\Check\SitemapSpoolCheck;
 use IndexNowKit\Client;
 use IndexNowKit\ClientInterface;
 use IndexNowKit\Collector\Collector;
@@ -30,7 +29,6 @@ use IndexNowKit\Collector\CollectorInterface;
 use IndexNowKit\Config;
 use IndexNowKit\Console\ResultFormatterInterface;
 use IndexNowKit\Console\ResultRenderer;
-use IndexNowKit\Console\SitemapRunner;
 use IndexNowKit\Console\SubjectLoaderInterface;
 use IndexNowKit\Console\SubmitterFactory;
 use IndexNowKit\Console\SubmitterFactoryInterface;
@@ -69,9 +67,11 @@ use IndexNowKit\Laravel\Http\KeyFileController;
 use IndexNowKit\Laravel\Queue\QueueDispatcher;
 use IndexNowKit\Laravel\Url\ContainerResolverLocator;
 use IndexNowKit\Laravel\Url\LaravelRouteUrlResolver;
+use IndexNowKit\Sitemap\Check\SitemapSpoolCheck;
+use IndexNowKit\Sitemap\Console\SitemapRunner;
+use IndexNowKit\Sitemap\SitemapConfig;
 use IndexNowKit\Sitemap\SitemapReader;
 use IndexNowKit\Sitemap\SitemapSourceInterface;
-use IndexNowKit\Sitemap\SpoolMode;
 use IndexNowKit\Submitter;
 use IndexNowKit\SubmitterInterface;
 use IndexNowKit\Throttle\ThrottleInterface;
@@ -194,7 +194,6 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             resolver: $app->make(GuardedUrlResolver::class),
             logger: $app->make(self::LOGGER),
             transport: $app->make(TransportInterface::class),
-            sitemap: (self::block($app, 'sitemap')['enabled'] ?? true) === false ? null : $app->make(SitemapSourceInterface::class),
         ));
         $this->app->singleton(ObjectChangeHandler::class, static fn(Container $app): ObjectChangeHandler => $app->make(IndexNowKit::class)->changes());
     }
@@ -245,32 +244,20 @@ final class IndexNowKitServiceProvider extends ServiceProvider
 
     private function registerDiagnostics(): void
     {
-        $this->app->singleton(SitemapSourceInterface::class, static function (Container $app): SitemapSourceInterface {
-            $sitemap = self::raw($app)['sitemap'] ?? [];
-            $sitemap = \is_array($sitemap) ? $sitemap : [];
-            $int = static fn(mixed $value, int $default): int => is_numeric($value) ? (int) $value : $default;
-            $spool = SpoolMode::tryFrom(\is_string($sitemap['spool'] ?? null) ? $sitemap['spool'] : 'auto') ?? SpoolMode::Auto;
-            $dir = $sitemap['spool_dir'] ?? null;
+        // The validated `sitemap` block; a broken value disables the sitemap command with a critical log line, like the core options.
+        $this->app->singleton(SitemapConfig::class, static function (Container $app): SitemapConfig {
+            try {
+                return SitemapConfig::fromArray(self::block($app, 'sitemap'));
+            } catch (ConfigurationException $e) {
+                $app->make(self::LOGGER)->critical('indexnow: invalid sitemap configuration, the sitemap command is disabled until it is fixed: {error} (run "php artisan indexnow:check")', ['error' => $e->getMessage(), 'exception' => $e]);
 
-            return new SitemapReader(
-                $app->make(TransportInterface::class),
-                $int($sitemap['max_depth'] ?? null, 3),
-                $app->make(self::LOGGER),
-                $int($sitemap['max_sitemaps'] ?? null, SitemapReader::MAX_SITEMAPS),
-                $int($sitemap['max_bytes'] ?? null, SitemapReader::MAX_XML_BYTES),
-                (bool) ($sitemap['allow_foreign_hosts'] ?? false),
-                $spool,
-                \is_string($dir) && $dir !== '' ? $dir : null,
-                $int($sitemap['fetch_retries'] ?? null, 2),
-            );
+                return SitemapConfig::disabled();
+            }
         });
+        $this->app->singleton(SitemapSourceInterface::class, static fn(Container $app): SitemapSourceInterface => SitemapReader::fromConfig($app->make(SitemapConfig::class), $app->make(TransportInterface::class), $app->make(self::LOGGER)));
         $this->app->singleton(QueueCheck::class);
         $this->app->singleton(CacheStoreCheck::class);
-        $this->app->singleton(SitemapSpoolCheck::class, static function (Container $app): SitemapSpoolCheck {
-            $sitemap = self::raw($app)['sitemap'] ?? [];
-
-            return new SitemapSpoolCheck(\is_array($sitemap) ? $sitemap : []);
-        });
+        $this->app->singleton(SitemapSpoolCheck::class, static fn(Container $app): SitemapSpoolCheck => new SitemapSpoolCheck($app->make(SitemapConfig::class)));
         $this->app->singleton(EloquentCheck::class, static fn(Container $app): EloquentCheck => new EloquentCheck((bool) (self::block($app, 'eloquent')['enabled'] ?? true) && $app->make(Config::class)->enabled));
         $this->app->tag([QueueCheck::class, CacheStoreCheck::class, SitemapSpoolCheck::class, EloquentCheck::class], self::CHECK_TAG);
         $this->registerConsole();
@@ -298,7 +285,6 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             submitSubjects: 'indexnow:submit-model',
             configLocation: 'config/indexnow.php and INDEXNOW_* env vars',
             keyFileServedBy: 'by the package route',
-            sitemapUrlOption: 'indexnow.sitemap.url',
         ));
         $this->app->singleton(SubjectLoaderInterface::class, static fn(Container $app): SubjectLoaderInterface => $app->make(ModelLoader::class));
         $this->app->singleton(ResultFormatterInterface::class, ResultRenderer::class);
@@ -311,19 +297,14 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             $app->make(UrlNormalizerInterface::class),
             $app->make(self::LOGGER),
         ));
-        $this->app->singleton(SitemapRunner::class, static function (Container $app): SitemapRunner {
-            $sitemap = self::raw($app)['sitemap'] ?? [];
-            $url = \is_array($sitemap) ? ($sitemap['url'] ?? null) : null;
-
-            return new SitemapRunner(
-                $app->make(IndexNowKit::class),
-                $app->make(SitemapSourceInterface::class),
-                $app->make(SubmitterFactoryInterface::class),
-                \is_string($url) && $url !== '' ? $url : null,
-                $app->make(ResultFormatterInterface::class),
-                $app->make(Vocabulary::class),
-            );
-        });
+        $this->app->singleton(SitemapRunner::class, static fn(Container $app): SitemapRunner => new SitemapRunner(
+            $app->make(IndexNowKit::class),
+            $app->make(SitemapSourceInterface::class),
+            $app->make(SubmitterFactoryInterface::class),
+            $app->make(SitemapConfig::class)->url,
+            $app->make(ResultFormatterInterface::class),
+            sitemapUrlOption: 'indexnow.sitemap.url',
+        ));
     }
 
     private function registerKeyFileRoute(): void

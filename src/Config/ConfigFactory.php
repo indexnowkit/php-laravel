@@ -6,6 +6,7 @@ namespace IndexNowKit\Laravel\Config;
 
 use IndexNowKit\Config;
 use IndexNowKit\Exception\ConfigurationException;
+use IndexNowKit\Sitemap\SitemapConfig;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -16,13 +17,15 @@ use Psr\Log\NullLogger;
  */
 final class ConfigFactory
 {
-    /** Blocks this package owns; everything else goes to the core. */
+    /**
+     * Keys this package owns on top of Config::OPTIONS and SitemapConfig::OPTIONS, dotted-path form only: a bare
+     * block name in this list would stop unknownOptions() from checking the keys inside the block.
+     */
     public const LARAVEL_OPTIONS = [
-        'queue', 'queue.connection', 'queue.queue', 'queue.delay',
-        'key_file', 'key_file.enabled', 'key_file.path', 'key_file.host', 'key_file.cache_max_age', 'key_file.route_name', 'key_file.middleware',
-        'router', 'router.locales', 'router.locale_parameter', 'router.set_app_locale',
-        'eloquent', 'eloquent.enabled',
-        'sitemap', 'sitemap.enabled', 'sitemap.url', 'sitemap.max_depth', 'sitemap.max_sitemaps', 'sitemap.max_bytes', 'sitemap.allow_foreign_hosts', 'sitemap.spool', 'sitemap.spool_dir', 'sitemap.fetch_retries',
+        'queue.connection', 'queue.queue', 'queue.delay',
+        'key_file.enabled', 'key_file.path', 'key_file.host', 'key_file.cache_max_age', 'key_file.route_name', 'key_file.middleware',
+        'router.locales', 'router.locale_parameter', 'router.set_app_locale',
+        'eloquent.enabled',
         'logging.channel', 'debounce.store', 'http.client',
     ];
 
@@ -33,7 +36,7 @@ final class ConfigFactory
     {
         $logger ??= new NullLogger();
         try {
-            $unknown = Config::unknownOptions($config, self::LARAVEL_OPTIONS);
+            $unknown = Config::unknownOptions($config, [...self::LARAVEL_OPTIONS, ...SitemapConfig::OPTIONS]);
             if ($unknown !== []) {
                 $logger->warning('indexnow: unknown option(s) in config/indexnow.php: {options}', ['options' => implode(', ', $unknown)]);
             }

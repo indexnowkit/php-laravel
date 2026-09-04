@@ -66,6 +66,18 @@ final class ConfigFactoryTest extends TestCase
         self::assertStringContainsString('nope', implode("\n", $logger->messages('warning')));
     }
 
+    #[TestDox('a typo inside an owned block (key_file.enabld, sitemap.spol) is warned about like any unknown key')]
+    public function testTypoInsideOwnedBlockIsWarned(): void
+    {
+        $logger = new ArrayLogger();
+        ConfigFactory::create(['key' => self::KEY, 'key_file' => ['enabld' => false], 'sitemap' => ['spol' => 'memory', 'spool' => 'memory']], 'production', $logger);
+
+        $warnings = implode("\n", $logger->messages('warning'));
+        self::assertStringContainsString('key_file.enabld', $warnings);
+        self::assertStringContainsString('sitemap.spol', $warnings);
+        self::assertStringNotContainsString('sitemap.spool', $warnings);
+    }
+
     #[TestDox('outside production a missing key turns dry_run on instead of failing')]
     public function testDryRunSafetyNet(): void
     {
