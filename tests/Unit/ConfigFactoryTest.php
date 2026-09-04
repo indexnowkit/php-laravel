@@ -15,13 +15,13 @@ final class ConfigFactoryTest extends TestCase
 {
     private const KEY = 'abcdef1234567890abcdef1234567890';
 
-    #[TestDox('coreOptions strips the Laravel blocks and maps key_file.enabled to serve_key_file')]
-    public function testCoreOptions(): void
+    #[TestDox('the Laravel blocks are known to the factory, key_file.enabled maps to serveKeyFile, an empty environment falls back to the application one')]
+    public function testOwnedBlocks(): void
     {
-        $core = ConfigFactory::coreOptions([
+        $raw = [
             'key' => self::KEY,
             'queue' => ['connection' => 'redis'],
-            'key_file' => ['enabled' => false, 'path' => '/{key}.txt'],
+            'key_file' => ['enabled' => false, 'path' => '/{key}.txt', 'cache_max_age' => 30],
             'router' => ['locales' => ['en']],
             'eloquent' => ['enabled' => true],
             'sitemap' => ['enabled' => true],
@@ -29,11 +29,19 @@ final class ConfigFactoryTest extends TestCase
             'debounce' => ['store' => 'redis'],
             'http' => ['client' => 'x'],
             'environment' => '',
-        ]);
+            'dispatch' => 'sync',
+        ];
 
-        self::assertSame(['key' => self::KEY, 'logging' => ['max_urls' => 5], 'serve_key_file' => false], $core);
-        self::assertSame([], Config::unknownOptions($core));
-        self::assertTrue(ConfigFactory::coreOptions(['serve_key_file' => true, 'key_file' => ['enabled' => false]])['serve_key_file'], 'an explicit serve_key_file wins');
+        self::assertSame([], ConfigFactory::factory()->unknownOptions($raw));
+        $config = ConfigFactory::build($raw, 'local');
+        self::assertFalse($config->serveKeyFile);
+        self::assertSame(30, $config->keyFileMaxAge);
+        self::assertSame(5, $config->logUrls);
+        self::assertSame('redis', $config->debounceStore);
+        self::assertSame('x', $config->httpClient);
+        self::assertSame('local', $config->environment);
+        self::assertTrue(ConfigFactory::build(['key' => self::KEY, 'serve_key_file' => true, 'key_file' => ['enabled' => false]], 'local')->serveKeyFile, 'an explicit serve_key_file wins');
+        self::assertInstanceOf(Config::class, $config);
     }
 
     #[TestDox('the application environment feeds the core; dispatch queue requires base_url; unknown dispatch is rejected')]
