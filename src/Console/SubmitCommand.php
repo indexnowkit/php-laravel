@@ -5,17 +5,18 @@ declare(strict_types=1);
 namespace IndexNowKit\Laravel\Console;
 
 use Illuminate\Console\Command;
+use IndexNowKit\Console\Definitions;
 use IndexNowKit\Console\SubmitRunner;
 
 final class SubmitCommand extends Command
 {
-    protected $signature = 'indexnow:submit
-        {urls* : Absolute URLs or paths relative to base_url}
-        {--f|force : Ignore the debounce store: re-submit URLs sent within the last debounce.per_url seconds}
-        {--dry-run : Log the request instead of sending it}
-        {--json : Machine-readable output}';
-
-    protected $description = 'Submit URLs to IndexNow immediately (synchronously, bypassing the queue)';
+    public function __construct()
+    {
+        $definition = Definitions::submit();
+        $this->signature = $definition->laravelSignature('indexnow:submit');
+        $this->description = $definition->description;
+        parent::__construct();
+    }
 
     public function handle(SubmitRunner $runner): int
     {

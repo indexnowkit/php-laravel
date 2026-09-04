@@ -6,17 +6,18 @@ namespace IndexNowKit\Laravel\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Foundation\Application;
+use IndexNowKit\Console\Definitions;
 use IndexNowKit\Console\KeyGenerateRunner;
 
 final class KeyGenerateCommand extends Command
 {
-    protected $signature = 'indexnow:key:generate
-        {--l|length=32 : Key length (8-128)}
-        {--alphanumeric : Use the full alphanumeric alphabet instead of hex}
-        {--write-env= : Write INDEXNOW_KEY=<key> to this env file (default .env); idempotent}
-        {--force : Replace an existing INDEXNOW_KEY line in the env file (key rotation)}';
-
-    protected $description = 'Generate a new IndexNow key (optionally write INDEXNOW_KEY to .env)';
+    public function __construct()
+    {
+        $definition = Definitions::keyGenerate('.env');
+        $this->signature = $definition->laravelSignature('indexnow:key:generate');
+        $this->description = $definition->description;
+        parent::__construct();
+    }
 
     public function handle(KeyGenerateRunner $runner, Application $app): int
     {

@@ -7,13 +7,14 @@ namespace IndexNowKit\Laravel\Eloquent;
 use Illuminate\Database\Eloquent\Model;
 use IndexNowKit\Attribute\ParamExtractor;
 use IndexNowKit\Attribute\RuleSource;
+use IndexNowKit\Hook\ObserverHelper;
 use IndexNowKit\IndexNowKit;
+use IndexNowKit\Url\ObjectChangeHandler;
 use IndexNowKit\Url\ResolvedUrl;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
 use Throwable;
-use WeakMap;
 
 /**
  * Eloquent hooks. Synchronous on purpose (not ShouldHandleEventsAfterCommit): URLs are resolved while the old state
@@ -22,15 +23,15 @@ use WeakMap;
  * outermost transaction commits and drops when the transaction (or the savepoint it belongs to) rolls back.
  *
  * Nothing here throws into the application: the core's ObjectChangeHandler logs and yields nothing on a bad rule,
- * and every hand-off is guarded.
+ * and every hand-off is guarded by `Hook\ObserverHelper`. What is Laravel's: the change set from `getChanges()` /
+ * `getOriginal()`, the previous state from `getRawOriginal()`, the commit boundary through `Connection::afterCommit()`.
  */
 final class IndexNowObserver
 {
     /** Model events the observer handles; {@see IndexNowable} registers exactly these. */
     public const EVENTS = ['created', 'updated', 'deleting', 'deleted', 'restored'];
 
-    /** @var WeakMap<Model, list<string>> URLs resolved in `deleting`, delivered in `deleted` */
-    private WeakMap $pendingDeletions;
+    private readonly ObserverHelper $helper;
 
     public function __construct(
         private readonly IndexNowKit $indexNow,
@@ -38,17 +39,17 @@ final class IndexNowObserver
         private readonly bool $enabled = true,
         private readonly ?RouteBindingFieldsInterface $router = null,
     ) {
-        $this->pendingDeletions = new WeakMap();
+        $this->helper = new ObserverHelper($indexNow, $logger);
     }
 
     public function created(Model $model): void
     {
-        $this->guard($model, fn(): array => $this->indexNow->changes()->created($model));
+        $this->guard($model, static fn(ObjectChangeHandler $changes): array => $changes->created($model));
     }
 
     public function updated(Model $model): void
     {
-        $this->guard($model, function () use ($model): array {
+        $this->guard($model, function (ObjectChangeHandler $changes) use ($model): array {
             $changeSet = [];
             foreach (array_keys($model->getChanges()) as $field) {
                 $changeSet[$field] = [$model->getOriginal($field), $model->getAttribute($field)];
@@ -56,7 +57,6 @@ final class IndexNowObserver
             if ($changeSet === []) {
                 return [];
             }
-            $changes = $this->indexNow->changes();
 
             return [
                 ...$changes->renamed($model, $changeSet, self::previousState($model), $this->selfFields($model)),
@@ -71,10 +71,9 @@ final class IndexNowObserver
         if (!$this->enabled) {
             return;
         }
-        try {
-            $this->pendingDeletions[$model] = ResolvedUrl::urls($this->indexNow->changes()->deleted($model));
-        } catch (Throwable $e) {
-            $this->logger->error('indexnow: cannot resolve the URLs of {class} before deletion: {error}', ['class' => $model::class, 'error' => $e->getMessage(), 'exception' => $e]);
+        $urls = $this->helper->guard($model, static fn(ObjectChangeHandler $changes): array => $changes->deleted($model));
+        if ($urls !== null) {
+            $this->helper->rememberDeletion($model, $urls);
         }
     }
 
@@ -84,11 +83,10 @@ final class IndexNowObserver
         if (!$this->enabled) {
             return;
         }
-        $urls = $this->pendingDeletions[$model] ?? null;
-        unset($this->pendingDeletions[$model]);
+        $urls = $this->helper->takeDeletion($model);
         if ($urls === null) {
             // deleting() was not seen (deleted without events on the way in); the model still carries its attributes.
-            $this->guard($model, fn(): array => $this->indexNow->changes()->deleted($model));
+            $this->guard($model, static fn(ObjectChangeHandler $changes): array => $changes->deleted($model));
 
             return;
         }
@@ -98,28 +96,21 @@ final class IndexNowObserver
     /** SoftDeletes: the page is public again. */
     public function restored(Model $model): void
     {
-        $this->guard($model, fn(): array => $this->indexNow->changes()->created($model));
+        $this->guard($model, static fn(ObjectChangeHandler $changes): array => $changes->created($model));
     }
 
     /**
-     * @param callable(): list<ResolvedUrl> $resolve
+     * @param callable(ObjectChangeHandler): list<ResolvedUrl> $resolve
      */
     private function guard(Model $model, callable $resolve): void
     {
         if (!$this->enabled) {
             return;
         }
-        try {
-            $resolved = $resolve();
-        } catch (Throwable $e) {
-            $this->logger->error('indexnow: cannot resolve the URLs of {class}: {error}', ['class' => $model::class, 'error' => $e->getMessage(), 'exception' => $e]);
-
-            return;
+        $urls = $this->helper->guard($model, $resolve);
+        if ($urls !== null) {
+            $this->handOff($model, $urls);
         }
-        foreach ($resolved as $item) {
-            $this->logger->debug('indexnow: {source} ({event}) -> {url}', ['source' => $item->source(), 'event' => $item->event->value, 'url' => $item->url]);
-        }
-        $this->handOff($model, ResolvedUrl::urls($resolved));
     }
 
     /**
@@ -156,11 +147,7 @@ final class IndexNowObserver
      */
     private function deliver(array $urls): void
     {
-        try {
-            $this->indexNow->collect($urls);
-        } catch (Throwable $e) {
-            $this->logger->error('indexnow: cannot collect {count} URL(s): {error}', ['count' => \count($urls), 'error' => $e->getMessage(), 'exception' => $e]);
-        }
+        $this->helper->deliver($urls);
     }
 
     /**

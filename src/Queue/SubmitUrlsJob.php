@@ -7,9 +7,8 @@ namespace IndexNowKit\Laravel\Queue;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
-use IndexNowKit\Result;
-use IndexNowKit\ResultStatus;
 use IndexNowKit\Retry\RetryPolicy;
+use IndexNowKit\Retry\WorkerOutcome;
 use IndexNowKit\SubmitterInterface;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -58,30 +57,24 @@ final class SubmitUrlsJob implements ShouldQueue
 
     public function handle(SubmitterInterface $submitter, LoggerInterface $logger): void
     {
-        $results = $submitter->submit($this->urls);
-        $retryable = Result::retryableUrls($results);
-        if ($retryable !== []) {
-            $delay = $this->policy->delayAfter($results, $this->attempts());
+        $outcome = WorkerOutcome::of($submitter->submit($this->urls));
+        if ($outcome->hasRetryable()) {
+            $delay = $outcome->delay($this->policy, $this->attempts());
             if ($delay === null) {
-                $logger->error('indexnow: giving up on {count} URL(s) of job {id} after {attempts} attempt(s)', ['count' => \count($retryable), 'id' => $this->id, 'attempts' => $this->attempts()]);
-                $this->fail(new RuntimeException(\sprintf('IndexNow: %d URL(s) still rejected after %d attempt(s) (job %s)', \count($retryable), $this->attempts(), $this->id)));
+                $logger->error(...$outcome->gaveUpLog($this->id, $this->attempts()));
+                $this->fail(new RuntimeException(\sprintf('IndexNow: %d URL(s) still rejected after %d attempt(s) (job %s)', \count($outcome->retryUrls), $this->attempts(), $this->id)));
 
                 return;
             }
-            $logger->info('indexnow: {count} URL(s) of job {id} will be retried in {delay}s (attempt {attempts})', ['count' => \count($retryable), 'id' => $this->id, 'delay' => $delay, 'attempts' => $this->attempts()]);
+            $logger->info(...$outcome->retryLog($this->id, $delay, $this->attempts()));
             $this->release($delay);
 
             return;
         }
-        $final = Result::urlsWhere($results, static fn(Result $r): bool => $r->status === ResultStatus::Failed && !$r->retryable);
-        if ($final !== []) {
-            $reasons = [];
-            foreach ($results as $result) {
-                if ($result->status === ResultStatus::Failed && !$result->retryable) {
-                    $reasons[] = \sprintf('%s %s', $result->engine, $result->httpCode !== null ? (string) $result->httpCode : ($result->reason->value ?? 'failed'));
-                }
-            }
-            $this->fail(new RuntimeException(\sprintf('IndexNow: %d URL(s) rejected permanently (%s), job %s; run "php artisan indexnow:check"', \count($final), implode(', ', array_unique($reasons)), $this->id)));
+        if ($outcome->hasFinalFailures()) {
+            [$message, $context] = $outcome->finalLog($this->id, 'php artisan indexnow:check');
+            $logger->error($message, $context);
+            $this->fail(new RuntimeException(\sprintf('IndexNow: %d URL(s) rejected permanently (%s), job %s; run "php artisan indexnow:check"', \count($outcome->finalUrls), implode(', ', $outcome->finalReasons), $this->id)));
         }
     }
 }

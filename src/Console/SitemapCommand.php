@@ -6,6 +6,7 @@ namespace IndexNowKit\Laravel\Console;
 
 use Illuminate\Console\Command;
 use IndexNowKit\Console\ExitCode;
+use IndexNowKit\Sitemap\Console\Definitions;
 use IndexNowKit\Sitemap\Console\SitemapOptions;
 use IndexNowKit\Sitemap\Console\SitemapRunner;
 use IndexNowKit\Sitemap\SitemapConfig;
@@ -16,15 +17,13 @@ use IndexNowKit\Sitemap\SitemapConfig;
  */
 final class SitemapCommand extends Command
 {
-    protected $signature = 'indexnow:sitemap
-        {sitemap? : Sitemap URL or local file (default: sitemap.url from the config, else <base_url>/sitemap.xml)}
-        {--changed-since= : Only URLs whose <lastmod> is newer, e.g. "1 day" or "2026-09-01"}
-        {--allow-foreign-hosts : Follow nested sitemaps hosted on another origin (CDN) for this run}
-        {--f|force : Ignore the debounce store}
-        {--dry-run : List URLs without submitting}
-        {--json : Machine-readable output}';
-
-    protected $description = 'Submit every URL of a sitemap (or only those with lastmod after --changed-since)';
+    public function __construct()
+    {
+        $definition = Definitions::sitemap('indexnow.sitemap.url');
+        $this->signature = $definition->laravelSignature('indexnow:sitemap');
+        $this->description = $definition->description;
+        parent::__construct();
+    }
 
     public function handle(SitemapRunner $runner, SitemapConfig $config): int
     {

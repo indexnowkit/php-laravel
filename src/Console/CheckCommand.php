@@ -8,16 +8,18 @@ use Illuminate\Console\Command;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
 use IndexNowKit\Console\CheckRunner;
+use IndexNowKit\Console\Definitions;
 use IndexNowKit\Laravel\Config\ConfigFactory;
 
 final class CheckCommand extends Command
 {
-    protected $signature = 'indexnow:check
-        {--live : Send a real probe request (site root URL) to every configured engine}
-        {--host= : Check only this host (multi-domain setups)}
-        {--probe-url= : Page to send with --live (default: https://<host>/; give a real page when the root redirects)}';
-
-    protected $description = 'Validate the IndexNow configuration, verify the key file is reachable, report how submissions are wired';
+    public function __construct()
+    {
+        $definition = Definitions::check();
+        $this->signature = $definition->laravelSignature('indexnow:check');
+        $this->description = $definition->description;
+        parent::__construct();
+    }
 
     public function handle(CheckRunner $runner, Repository $config, Application $app): int
     {

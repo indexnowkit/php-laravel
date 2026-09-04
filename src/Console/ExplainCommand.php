@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace IndexNowKit\Laravel\Console;
 
 use Illuminate\Console\Command;
+use IndexNowKit\Console\Definitions;
 use IndexNowKit\Console\ExplainRunner;
+use IndexNowKit\Console\Vocabulary;
 
 /**
  * "Why was this model not submitted?" Walks the decision path of one model: rules -> event subscription -> `when`
@@ -13,12 +15,13 @@ use IndexNowKit\Console\ExplainRunner;
  */
 final class ExplainCommand extends Command
 {
-    protected $signature = 'indexnow:explain
-        {model : Model class (FQCN or App\Models short name)}
-        {id : Identifier}
-        {--event=updated : created | updated | deleted}';
-
-    protected $description = 'Explain what IndexNow would do for one model: rules, guards, URLs, key, debounce (sends nothing)';
+    public function __construct(Vocabulary $words)
+    {
+        $definition = Definitions::explain($words, 'model');
+        $this->signature = $definition->laravelSignature('indexnow:explain');
+        $this->description = $definition->description;
+        parent::__construct();
+    }
 
     public function handle(ExplainRunner $runner): int
     {
