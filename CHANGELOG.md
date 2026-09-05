@@ -12,6 +12,9 @@ contain breaking changes, listed under "Changed".
 
 ### Documentation
 
+- README: the quick-start model is `tests/Readme/Post.php` verbatim (complete `use` lines, the `category` relation the
+  `via:` rule reads, casts/defaults that make it run); `ReadmeQuickstartTest` compares the README block with the file
+  and runs the model through the test application against the FakeTransport.
 - README: "Notes for AI assistants" (package, minimal complete snippet, verification, pitfalls across the adapters);
   `ReadmeAiNotesTest` keeps it consistent with the commands and configuration keys.
 

@@ -78,8 +78,12 @@ final class Fixtures
             $table->id();
             $table->string('slug')->unique();
             $table->string('title')->default('title');
+            $table->text('body')->nullable();
             $table->boolean('published')->default(true);
+            $table->boolean('amp')->default(false);
             $table->integer('views')->default(0);
+            $table->unsignedBigInteger('category_id')->nullable();   // the README model (tests/Readme/Post.php)
+            $table->timestamps();
         });
         $schema->create('multi_posts', static function (Blueprint $table): void {
             $table->id();

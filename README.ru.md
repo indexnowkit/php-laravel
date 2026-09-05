@@ -63,24 +63,42 @@ INDEXNOW_BASE_URL=https://www.example.com   # по умолчанию APP_URL; �
 
 `#[IndexNow]` повторяемый: один атрибут на семейство публичных URL модели. `IndexNowable` регистрирует observer.
 
+<!-- test: quickstart-model -->
 ```php
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use IndexNowKit\Attribute\{IndexNow, IndexNowDefaults};
 use IndexNowKit\Laravel\Eloquent\IndexNowable;
 
 #[IndexNowDefaults(when: 'isPublished', fields: ['slug', 'title', 'body', 'published'])]
 #[IndexNow(route: 'posts.show', params: ['post' => 'self'])]                 // route model binding
-#[IndexNow(route: 'posts.amp', params: ['post' => 'self'], when: 'hasAmp')]
-#[IndexNow(via: 'category')]      // изменённый пост обновляет и страницу своей категории
+#[IndexNow(route: 'posts.amp', params: ['slug' => 'slug'], when: 'hasAmp')]
+#[IndexNow(via: 'category')]      // изменившийся пост обновляет и страницу категории
 #[IndexNow(urls: ['/'])]          // и главную
 class Post extends Model
 {
     use IndexNowable;
 
-    public function isPublished(): bool { return $this->published; }
-    public function hasAmp(): bool { return $this->amp; }
+    protected $casts = ['published' => 'bool', 'amp' => 'bool'];
+
+    public function isPublished(): bool
+    {
+        return $this->published;
+    }
+
+    public function hasAmp(): bool
+    {
+        return $this->amp;
+    }
+
+    /** @return BelongsTo<Category, $this> */
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
+    }
 }
 ```
-
+<!-- /test -->
 | Опция | Смысл |
 |---|---|
 | `route` / `params` | имя маршрута и `param => атрибут, метод, "self", путь.через.точку` либо типизированный `Param\*` |
