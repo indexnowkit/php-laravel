@@ -7,9 +7,11 @@ namespace IndexNowKit\Laravel\Console;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
+use IndexNowKit\Adapter\OptionalPackage;
 use IndexNowKit\Console\CheckRunner;
 use IndexNowKit\Console\Definitions;
 use IndexNowKit\Laravel\Config\ConfigFactory;
+use IndexNowKit\Laravel\IndexNowKitServiceProvider;
 
 final class CheckCommand extends Command
 {
@@ -31,7 +33,10 @@ final class CheckCommand extends Command
             static function () use ($config, $app): mixed {
                 $raw = $config->get('indexnow');
 
-                return ConfigFactory::build(\is_array($raw) ? $raw : [], (string) $app->environment());
+                $package = $app->make(IndexNowKitServiceProvider::SITEMAP_PACKAGE);
+                \assert($package instanceof OptionalPackage);
+
+                return ConfigFactory::build(\is_array($raw) ? $raw : [], (string) $app->environment(), $package->installed());
             },
             (bool) $this->option('live'),
             \is_string($host) ? $host : null,

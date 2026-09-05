@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace IndexNowKit\Laravel\Tests\Feature;
 
+use Closure;
 use Illuminate\Contracts\Console\Kernel;
-use IndexNowKit\Laravel\Sitemap\SitemapSupport;
+use IndexNowKit\Adapter\OptionalPackage;
+use IndexNowKit\Laravel\IndexNowKitServiceProvider;
+use IndexNowKit\Laravel\Sitemap\SitemapServices;
 use IndexNowKit\Laravel\Tests\LaravelTestCase;
 use PHPUnit\Framework\Attributes\TestDox;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -16,16 +19,12 @@ use Symfony\Component\Console\Output\BufferedOutput;
  */
 final class SitemapNotInstalledDefaultsTest extends LaravelTestCase
 {
-    protected function setUp(): void
+    /**
+     * @return array<string, Closure>
+     */
+    protected function overrideApplicationBindings($app): array
     {
-        SitemapSupport::$installed = false;
-        parent::setUp();
-    }
-
-    protected function tearDown(): void
-    {
-        SitemapSupport::$installed = null;
-        parent::tearDown();
+        return [IndexNowKitServiceProvider::SITEMAP_PACKAGE => static fn(): OptionalPackage => SitemapServices::package(false)];
     }
 
     protected function configOverrides(): array
@@ -43,7 +42,7 @@ final class SitemapNotInstalledDefaultsTest extends LaravelTestCase
         $this->app->make(Kernel::class)->call('indexnow:check', [], $output);
 
         $display = $output->fetch();
-        self::assertStringContainsString(SitemapSupport::CHECK_MISSING, $display);
+        self::assertStringContainsString('sitemap: not installed (composer require indexnowkit/sitemap)', $display);
         self::assertStringNotContainsString('block in the configuration is ignored', $display);
     }
 }

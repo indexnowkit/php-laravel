@@ -6,7 +6,6 @@ namespace IndexNowKit\Laravel\Console;
 
 use Illuminate\Console\Command;
 use IndexNowKit\Console\ExitCode;
-use IndexNowKit\Laravel\Sitemap\SitemapSupport;
 
 /**
  * `indexnow:sitemap` while `indexnowkit/sitemap` is not installed: a scheduled run that used the command before
@@ -19,7 +18,10 @@ final class SitemapNotInstalledCommand extends Command
 
     protected $description = 'Submit every URL of a sitemap (needs indexnowkit/sitemap, which is not installed)';
 
-    public function __construct()
+    /**
+     * @param string $message what to print: `OptionalPackage::notInstalledMessage()` of the provider's sitemap package
+     */
+    public function __construct(private readonly string $message)
     {
         parent::__construct();
         $this->ignoreValidationErrors();
@@ -27,7 +29,7 @@ final class SitemapNotInstalledCommand extends Command
 
     public function handle(): int
     {
-        $this->getOutput()->writeln('<error>' . SitemapSupport::NOT_INSTALLED . '</error>'); // one line, not a wrapped block: a scheduler log greps it
+        $this->getOutput()->writeln('<error>' . $this->message . '</error>'); // one line, not a wrapped block: a scheduler log greps it
 
         return ExitCode::FAILURE;
     }

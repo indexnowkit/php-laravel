@@ -8,7 +8,6 @@ use IndexNowKit\Adapter\ConfigFactory as CoreConfigFactory;
 use IndexNowKit\Config;
 use IndexNowKit\Exception\ConfigurationException;
 use IndexNowKit\Laravel\Sitemap\SitemapServices;
-use IndexNowKit\Laravel\Sitemap\SitemapSupport;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -38,10 +37,13 @@ final class ConfigFactory
     /**
      * Without indexnowkit/sitemap the `sitemap` block is ignored as a whole (no "unknown option" warning for a
      * configuration written for the package); with it, its keys are owned and typos inside it are warned about.
+     *
+     * @param bool|null $sitemapInstalled null = detect ({@see SitemapServices::package()}); the provider passes the
+     *                                    answer of the container's `OptionalPackage`, tests pass false
      */
-    public static function factory(): CoreConfigFactory
+    public static function factory(?bool $sitemapInstalled = null): CoreConfigFactory
     {
-        $sitemap = SitemapSupport::installed();
+        $sitemap = $sitemapInstalled ?? SitemapServices::package()->installed();
 
         return new CoreConfigFactory(
             ownedOptions: $sitemap ? [...self::LARAVEL_OPTIONS, ...SitemapServices::options()] : self::LARAVEL_OPTIONS,
@@ -57,9 +59,9 @@ final class ConfigFactory
      *
      * @param array<string, mixed> $config the `indexnow` config array
      */
-    public static function create(array $config, string $environment, ?LoggerInterface $logger = null): Config
+    public static function create(array $config, string $environment, ?LoggerInterface $logger = null, ?bool $sitemapInstalled = null): Config
     {
-        return self::factory()->load($config, $environment, $logger ?? new NullLogger());
+        return self::factory($sitemapInstalled)->load($config, $environment, $logger ?? new NullLogger());
     }
 
     /**
@@ -69,8 +71,8 @@ final class ConfigFactory
      *
      * @throws ConfigurationException
      */
-    public static function build(array $config, string $environment): Config
+    public static function build(array $config, string $environment, ?bool $sitemapInstalled = null): Config
     {
-        return self::factory()->build($config, $environment);
+        return self::factory($sitemapInstalled)->build($config, $environment);
     }
 }

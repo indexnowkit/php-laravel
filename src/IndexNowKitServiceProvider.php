@@ -17,6 +17,7 @@ use Illuminate\Log\LogManager;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;
+use IndexNowKit\Adapter\OptionalPackage;
 use IndexNowKit\Adapter\SubmitterFactory;
 use IndexNowKit\Adapter\SubmitterFactoryInterface;
 use IndexNowKit\Attribute\AttributeReader;
@@ -25,9 +26,8 @@ use IndexNowKit\Attribute\ParamExtractor;
 use IndexNowKit\Attribute\RuleRegistry;
 use IndexNowKit\Check\Checker;
 use IndexNowKit\Check\CheckerInterface;
-use IndexNowKit\Check\CheckLevel;
+use IndexNowKit\Check\CheckInterface;
 use IndexNowKit\Check\DebounceStoreCheck;
-use IndexNowKit\Check\StaticCheck;
 use IndexNowKit\Client;
 use IndexNowKit\ClientInterface;
 use IndexNowKit\Collector\Collector;
@@ -66,7 +66,6 @@ use IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface;
 use IndexNowKit\Laravel\Http\KeyFileController;
 use IndexNowKit\Laravel\Queue\QueueDispatcher;
 use IndexNowKit\Laravel\Sitemap\SitemapServices;
-use IndexNowKit\Laravel\Sitemap\SitemapSupport;
 use IndexNowKit\Laravel\Url\LaravelRouteUrlResolver;
 use IndexNowKit\Submitter;
 use IndexNowKit\SubmitterInterface;
@@ -90,7 +89,8 @@ use Psr\Log\NullLogger;
  * `Debounce\DebounceStoreFactory`, `Dispatch\DispatcherFactory`, the `fromConfig()` constructors). Registers the
  * observer support, the key file route, the artisan commands and the flush points (app()->terminating(), queue
  * JobProcessed). The sitemap bindings come from `Sitemap\SitemapServices` when the optional `indexnowkit/sitemap`
- * is installed ({@see SitemapSupport}); without it `indexnow:sitemap` is a stub and `indexnow:check` prints one line.
+ * is installed (`Adapter\OptionalPackage` under {@see SITEMAP_PACKAGE}); without it `indexnow:sitemap` is a stub and
+ * `indexnow:check` prints one line.
  */
 final class IndexNowKitServiceProvider extends ServiceProvider
 {
@@ -104,11 +104,21 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     public const DEFAULT_DEBOUNCE_STORE = 'cache';
     /** Container id of the `check` line printed without `indexnowkit/sitemap`. */
     public const SITEMAP_MISSING_CHECK = 'indexnowkit.check.sitemap_missing';
+    /**
+     * Container id of the `Adapter\OptionalPackage` for `indexnowkit/sitemap`: the one predicate the provider, the
+     * config factory and the commands share. Bind it before the provider registers to override it (Testbench:
+     * `overrideApplicationBindings()` returning `[IndexNowKitServiceProvider::SITEMAP_PACKAGE => fn() =>
+     * SitemapServices::package(false)]` boots as if the package were absent; `defineEnvironment()` is too late).
+     */
+    public const SITEMAP_PACKAGE = 'indexnowkit.sitemap_package';
 
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/indexnow.php', 'indexnow');
         ParamExtractor::registerReader(new EloquentSubjectReader());
+        if (!$this->app->bound(self::SITEMAP_PACKAGE)) {
+            $this->app->instance(self::SITEMAP_PACKAGE, SitemapServices::package());
+        }
 
         $this->app->singleton(self::LOGGER, static function (Container $app): LoggerInterface {
             $channel = self::block($app, 'logging')['channel'] ?? null;
@@ -138,7 +148,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     {
         $this->publishes([__DIR__ . '/../config/indexnow.php' => $this->app->configPath('indexnow.php')], self::CONFIG_TAG);
         if ($this->app->runningInConsole()) {
-            $this->commands([KeyGenerateCommand::class, CheckCommand::class, SubmitCommand::class, SubmitModelCommand::class, ExplainCommand::class, ...SitemapSupport::installed() ? SitemapServices::commands() : [SitemapNotInstalledCommand::class]]);
+            $this->commands([KeyGenerateCommand::class, CheckCommand::class, SubmitCommand::class, SubmitModelCommand::class, ExplainCommand::class, ...$this->sitemapPackage()->installed() ? SitemapServices::commands() : [SitemapNotInstalledCommand::class]]);
         }
         $this->registerKeyFileRoute();
 
@@ -153,7 +163,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
 
     private function registerCore(): void
     {
-        $this->app->singleton(Config::class, static fn(Container $app): Config => ConfigFactory::create(self::raw($app), (string) $app->make(Application::class)->environment(), $app->make(self::LOGGER)));
+        $this->app->singleton(Config::class, static fn(Container $app): Config => ConfigFactory::create(self::raw($app), (string) $app->make(Application::class)->environment(), $app->make(self::LOGGER), self::package($app)->installed()));
         $this->app->singleton(KeyProviderInterface::class, static fn(Container $app): KeyProviderInterface => StaticKeyProvider::fromConfig($app->make(Config::class)));
         // http.client: a container binding or class of a PSR-18 client; resolved on the first request only.
         $this->app->singleton(TransportInterface::class, static fn(Container $app): TransportInterface => TransportFactory::lazy($app->make(Config::class), static fn(string $id): mixed => $app->make($id)));
@@ -236,16 +246,17 @@ final class IndexNowKitServiceProvider extends ServiceProvider
 
     private function registerDiagnostics(): void
     {
-        if (SitemapSupport::installed()) {
+        if ($this->sitemapPackage()->installed()) {
             SitemapServices::register($this->app, self::LOGGER);
             $sitemapCheck = SitemapServices::SPOOL_CHECK;
         } else {
-            $this->app->singleton(self::SITEMAP_MISSING_CHECK, static function (Container $app): StaticCheck {
+            $this->app->singleton(self::SITEMAP_MISSING_CHECK, static function (Container $app): CheckInterface {
                 /** @var array{sitemap?: array<string, mixed>} $defaults */
                 $defaults = require __DIR__ . '/../config/indexnow.php';
 
-                return new StaticCheck(CheckLevel::Ok, SitemapSupport::checkLine(self::block($app, 'sitemap'), $defaults['sitemap'] ?? []));
+                return self::package($app)->check(self::block($app, 'sitemap'), $defaults['sitemap'] ?? []);
             });
+            $this->app->singleton(SitemapNotInstalledCommand::class, static fn(Container $app): SitemapNotInstalledCommand => new SitemapNotInstalledCommand(self::package($app)->notInstalledMessage()));
             $sitemapCheck = self::SITEMAP_MISSING_CHECK;
         }
         $this->app->singleton(QueueCheck::class);
@@ -334,6 +345,19 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         $config = $app->make(Repository::class)->get('indexnow');
 
         return \is_array($config) ? $config : [];
+    }
+
+    private function sitemapPackage(): OptionalPackage
+    {
+        return self::package($this->app);
+    }
+
+    private static function package(Container $app): OptionalPackage
+    {
+        $package = $app->make(self::SITEMAP_PACKAGE);
+        \assert($package instanceof OptionalPackage);
+
+        return $package;
     }
 
     /**

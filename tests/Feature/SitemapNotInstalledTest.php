@@ -4,34 +4,33 @@ declare(strict_types=1);
 
 namespace IndexNowKit\Laravel\Tests\Feature;
 
+use Closure;
 use Illuminate\Contracts\Console\Kernel;
+use IndexNowKit\Adapter\OptionalPackage;
 use IndexNowKit\Config;
 use IndexNowKit\Console\ExitCode;
 use IndexNowKit\Laravel\IndexNowKitServiceProvider;
-use IndexNowKit\Laravel\Sitemap\SitemapSupport;
+use IndexNowKit\Laravel\Sitemap\SitemapServices;
 use IndexNowKit\Laravel\Tests\Fixtures\Post;
 use IndexNowKit\Laravel\Tests\LaravelTestCase;
 use PHPUnit\Framework\Attributes\TestDox;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 /**
- * indexnowkit/sitemap not installed (the predicate forced to false): `indexnow:sitemap` is a stub that says what to
+ * indexnowkit/sitemap not installed (an OptionalPackage with installed: false bound under SITEMAP_PACKAGE before the
+ * provider registers — Testbench's overrideApplicationBindings(), the only hook that runs before register()): `indexnow:sitemap` is a stub that says what to
  * install and exits 1, `indexnow:check` prints one line about it, the `sitemap` block of the fixtures (which
  * differs from the package defaults) warns about nothing, no sitemap binding exists, everything else works and
  * nothing is logged.
  */
 final class SitemapNotInstalledTest extends LaravelTestCase
 {
-    protected function setUp(): void
+    /**
+     * @return array<string, Closure>
+     */
+    protected function overrideApplicationBindings($app): array
     {
-        SitemapSupport::$installed = false;
-        parent::setUp();
-    }
-
-    protected function tearDown(): void
-    {
-        SitemapSupport::$installed = null;
-        parent::tearDown();
+        return [IndexNowKitServiceProvider::SITEMAP_PACKAGE => static fn(): OptionalPackage => SitemapServices::package(false)];
     }
 
     protected function configOverrides(): array
@@ -45,7 +44,7 @@ final class SitemapNotInstalledTest extends LaravelTestCase
         [$code, $output] = $this->artisanCall('indexnow:sitemap', ['sitemap' => 'https://www.example.com/sitemap.xml', '--dry-run' => true, '--changed-since' => '1 day']);
 
         self::assertSame(ExitCode::FAILURE, $code);
-        self::assertStringContainsString(SitemapSupport::NOT_INSTALLED, $output);
+        self::assertStringContainsString('indexnowkit/sitemap is not installed: composer require indexnowkit/sitemap', $output);
         self::assertSame([], $this->transport->posts);
     }
 
@@ -53,7 +52,7 @@ final class SitemapNotInstalledTest extends LaravelTestCase
     public function testCheckAndOtherCommands(): void
     {
         [, $output] = $this->artisanCall('indexnow:check');
-        self::assertStringContainsString(SitemapSupport::CHECK_MISSING_BLOCK_IGNORED, $output);
+        self::assertStringContainsString('sitemap: not installed, the sitemap block in the configuration is ignored (composer require indexnowkit/sitemap)', $output);
         self::assertStringNotContainsString('spool', $output, 'no spool line, no unknown option line');
 
         [$code, $output] = $this->artisanCall('indexnow:submit', ['urls' => ['/a'], '--dry-run' => true]);
