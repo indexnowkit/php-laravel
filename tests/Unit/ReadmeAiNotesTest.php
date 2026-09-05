@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IndexNowKit\Laravel\Tests\Unit;
 
+use IndexNowKit\History\HistoryConfig;
 use IndexNowKit\Laravel\Config\ConfigFactory;
 use IndexNowKit\Sitemap\SitemapConfig;
 use IndexNowKit\Testing\Conformance\ReadmeAssertions;
@@ -17,6 +18,6 @@ final class ReadmeAiNotesTest extends TestCase
 {
     public function testTheNotesForAiAssistantsAreConsistentWithTheCode(): void
     {
-        ReadmeAssertions::assertAiNotes(\dirname(__DIR__, 2), ['indexnow:check', 'indexnow:key:generate', 'indexnow:submit', 'indexnow:submit-model', 'indexnow:explain', 'indexnow:sitemap'], [...ConfigFactory::LARAVEL_OPTIONS, ...SitemapConfig::OPTIONS]);
+        ReadmeAssertions::assertAiNotes(\dirname(__DIR__, 2), ['indexnow:check', 'indexnow:key:generate', 'indexnow:submit', 'indexnow:submit-model', 'indexnow:explain', 'indexnow:sitemap', 'indexnow:history', 'indexnow:status'], [...ConfigFactory::LARAVEL_OPTIONS, ...SitemapConfig::OPTIONS, ...HistoryConfig::OPTIONS]);
     }
 }

@@ -174,7 +174,9 @@ Run it after every key rotation and after every deployment that touches the conf
 | `indexnow:submit <urls...>` | `-f, --force` ignore debounce · `--dry-run` · `--json` |
 | `indexnow:submit-model <model> [ids...]` | `--event=` · `--limit=` · `--explain` · `-f, --force` · `--dry-run` · `--json` |
 | `indexnow:explain <model> <id>` | `--event=` — rules, `when`, URLs, key, debounce; sends nothing |
-| `indexnow:sitemap [sitemap]` | `--changed-since="1 day"` · `--allow-foreign-hosts` · `-f, --force` · `--dry-run` · `--json` |
+| `indexnow:sitemap [sitemap]` | `--changed-since="1 day"` · `--allow-foreign-hosts` · `-f, --force` · `--dry-run` · `--json` · `--no-verify` |
+| `indexnow:history` | `--host=` · `--status=ok|failed|skipped|pending` · `--url=` · `--since=2h|3d|2026-09-01` · `--limit=` (default 50) · `--json` · `--purge[=days]` |
+| `indexnow:status` | `--json` |
 | `indexnow:key:generate` | `-l, --length` · `--alphanumeric` · `--write-env[=FILE]` (default `.env`) · `--force` rotate |
 
 `<model>` accepts an FQCN or a short `App\Models` name.
@@ -188,6 +190,33 @@ too. Schedule it: `Schedule::command('indexnow:sitemap --changed-since="1 day"')
 everything else works unchanged: `indexnow:sitemap` says `indexnowkit/sitemap is not installed: composer require
 indexnowkit/sitemap` and exits 1, `indexnow:check` prints `sitemap: not installed (…)`, the `sitemap` block of
 `config/indexnow.php` is ignored. Nothing is logged about it. Details: [docs/sitemap.md](docs/sitemap.md).
+
+### History
+
+`composer require indexnowkit/history   # optional: what was submitted, when, with what answer`
+
+```php
+// config/indexnow.php
+'history' => [
+    'store' => env('INDEXNOW_HISTORY_STORE'),   // null (default, nothing kept) | psr16 (the debounce cache store) | pdo
+    'pdo' => ['service' => null],               // a connection of config/database.php (null = default) — or 'dsn' => 'sqlite:/var/data/indexnow.sqlite'
+],
+```
+
+Every `Result` the submitter produces — the flush in `app()->terminating()`, the queue job, the commands, a URL
+skipped by `indexnowkit/verify` — is recorded: normalized URLs, host, engine, status, reason, HTTP code, the error
+message (never the response body or the key). `php artisan indexnow:history` lists them newest first (`--host`,
+`--status`, `--url`, `--since`, `--json`); `indexnow:history --purge` removes what is older than
+`history.retention_days` (`Schedule::command('indexnow:history --purge')->daily()`); `php artisan indexnow:status`
+prints the switches, the dispatch mode with the queue connection and queue, the debounce store, the 403 counter of
+every host, the last successful submission and the history size (`--json` for machines); `php artisan about` gets a
+`History` line. `pdo` needs the table: the migration is in the package's
+[docs/migrations.md](https://github.com/indexnowkit/php/blob/main/packages/history/docs/migrations.md)
+(`Schema::sql()`); until it exists `indexnow:check` prints a `history.store` error and the submitter logs the failure
+without breaking the flush. `psr16` is a ring buffer of `history.limit` records for one process and small sites. A
+`Submission\SubmissionStoreInterface` you bind yourself takes precedence over either. Without the package
+`indexnow:history` and `indexnow:status` say `indexnowkit/history is not installed: composer require
+indexnowkit/history` and exit 1, `indexnow:check` prints `history: not installed (…)`.
 
 ## Configuration
 
@@ -246,7 +275,7 @@ break is listed under "Changed" in [CHANGELOG.md](CHANGELOG.md) with the migrati
 
 ## Notes for AI assistants
 
-- Composer package `indexnowkit/laravel` (Laravel 12 | 13, on `indexnowkit/core`); the `sitemap` command needs `indexnowkit/sitemap`. Configuration: `config/indexnow.php` and `INDEXNOW_*` env variables.
+- Composer package `indexnowkit/laravel` (Laravel 12 | 13, on `indexnowkit/core`); the `sitemap` command needs `indexnowkit/sitemap`; pre-flight checks need `indexnowkit/verify`; `indexnow:history` / `indexnow:status` need `indexnowkit/history` (`history.store: psr16|pdo`). Configuration: `config/indexnow.php` and `INDEXNOW_*` env variables.
 - Minimal complete snippet (every `use` included):
 
 ```php

@@ -44,6 +44,7 @@
         "psr/log": "^1.1 || ^2.0 || ^3.0"
     },
     "require-dev": {
+        "indexnowkit/history": "^0.1",
         "indexnowkit/sitemap": "^0.5",
         "indexnowkit/testing": "^0.2",
         "indexnowkit/verify": "^0.1",
@@ -57,6 +58,7 @@
     "suggest": {
         "indexnowkit/sitemap": "The indexnow:sitemap command (^0.5)",
         "indexnowkit/verify": "Pre-flight GET of every URL before submission — noindex, robots.txt, canonical, redirects (^0.1; verify.enabled: true)",
+        "indexnowkit/history": "Submission history in a cache store or a database table, the indexnow:history and indexnow:status commands (^0.1; history.store: psr16|pdo)",
         "laravel/octane": "Supported: the collector is a scoped singleton and is flushed on terminate",
         "nyholm/psr7": "PSR-17 factories when no PSR-18 client is installed (any PSR-18 client works, e.g. guzzlehttp/guzzle ^7 which Laravel ships)"
     },

@@ -7,6 +7,7 @@ namespace IndexNowKit\Laravel\Config;
 use IndexNowKit\Adapter\ConfigFactory as CoreConfigFactory;
 use IndexNowKit\Config;
 use IndexNowKit\Exception\ConfigurationException;
+use IndexNowKit\Laravel\History\HistoryServices;
 use IndexNowKit\Laravel\Sitemap\SitemapServices;
 use IndexNowKit\Laravel\Verify\VerifyServices;
 use Psr\Log\LoggerInterface;
@@ -38,23 +39,25 @@ final class ConfigFactory
     /**
      * Without indexnowkit/sitemap the `sitemap` block is ignored as a whole (no "unknown option" warning for a
      * configuration written for the package); with it, its keys are owned and typos inside it are warned about.
-     * The same for indexnowkit/verify and the `verify` block.
+     * The same for indexnowkit/verify and the `verify` block, indexnowkit/history and the `history` block.
      *
      * @param bool|null $sitemapInstalled null = detect ({@see SitemapServices::package()}); the provider passes the
      *                                    answer of the container's `OptionalPackage`, tests pass false
      * @param bool|null $verifyInstalled  the same for `indexnowkit/verify` ({@see VerifyServices::package()})
+     * @param bool|null $historyInstalled the same for `indexnowkit/history` ({@see HistoryServices::package()})
      */
-    public static function factory(?bool $sitemapInstalled = null, ?bool $verifyInstalled = null): CoreConfigFactory
+    public static function factory(?bool $sitemapInstalled = null, ?bool $verifyInstalled = null, ?bool $historyInstalled = null): CoreConfigFactory
     {
         $sitemap = $sitemapInstalled ?? SitemapServices::package()->installed();
         $verify = $verifyInstalled ?? VerifyServices::package()->installed();
+        $history = $historyInstalled ?? HistoryServices::package()->installed();
 
         return new CoreConfigFactory(
-            ownedOptions: [...self::LARAVEL_OPTIONS, ...$sitemap ? SitemapServices::options() : [], ...$verify ? VerifyServices::options() : []],
+            ownedOptions: [...self::LARAVEL_OPTIONS, ...$sitemap ? SitemapServices::options() : [], ...$verify ? VerifyServices::options() : [], ...$history ? HistoryServices::options() : []],
             dispatchModes: self::DISPATCH_MODES,
             needBaseUrl: ['queue'],
             checkCommand: 'php artisan indexnow:check',
-            ignoreBlocks: [...$sitemap ? [] : ['sitemap'], ...$verify ? [] : ['verify']],
+            ignoreBlocks: [...$sitemap ? [] : ['sitemap'], ...$verify ? [] : ['verify'], ...$history ? [] : ['history']],
         );
     }
 
@@ -63,9 +66,9 @@ final class ConfigFactory
      *
      * @param array<string, mixed> $config the `indexnow` config array
      */
-    public static function create(array $config, string $environment, ?LoggerInterface $logger = null, ?bool $sitemapInstalled = null, ?bool $verifyInstalled = null): Config
+    public static function create(array $config, string $environment, ?LoggerInterface $logger = null, ?bool $sitemapInstalled = null, ?bool $verifyInstalled = null, ?bool $historyInstalled = null): Config
     {
-        return self::factory($sitemapInstalled, $verifyInstalled)->load($config, $environment, $logger ?? new NullLogger());
+        return self::factory($sitemapInstalled, $verifyInstalled, $historyInstalled)->load($config, $environment, $logger ?? new NullLogger());
     }
 
     /**
@@ -75,8 +78,8 @@ final class ConfigFactory
      *
      * @throws ConfigurationException
      */
-    public static function build(array $config, string $environment, ?bool $sitemapInstalled = null, ?bool $verifyInstalled = null): Config
+    public static function build(array $config, string $environment, ?bool $sitemapInstalled = null, ?bool $verifyInstalled = null, ?bool $historyInstalled = null): Config
     {
-        return self::factory($sitemapInstalled, $verifyInstalled)->build($config, $environment);
+        return self::factory($sitemapInstalled, $verifyInstalled, $historyInstalled)->build($config, $environment);
     }
 }

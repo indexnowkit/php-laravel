@@ -41,8 +41,10 @@ final class ConfigCommand extends Command
                 \assert($package instanceof OptionalPackage);
                 $verify = $app->make(IndexNowKitServiceProvider::VERIFY_PACKAGE);
                 \assert($verify instanceof OptionalPackage);
+                $history = $app->make(IndexNowKitServiceProvider::HISTORY_PACKAGE);
+                \assert($history instanceof OptionalPackage);
 
-                return ConfigFactory::build($raw, (string) $app->environment(), $package->installed(), $verify->installed());
+                return ConfigFactory::build($raw, (string) $app->environment(), $package->installed(), $verify->installed(), $history->installed());
             },
             $raw,
             (bool) $this->option('json'),

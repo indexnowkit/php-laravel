@@ -184,4 +184,27 @@ return [
         // User-Agent of the pre-flight GETs (null = indexnowkit-verify/<version>); allow it in your WAF.
         'user_agent' => null,
     ],
+
+    // Where every submission Result is recorded (URLs, host, engine, status, reason, HTTP code, error message —
+    // never the response body or the key), read by php artisan indexnow:history and indexnow:status. Needs
+    // indexnowkit/history (composer require indexnowkit/history); without the package this block is ignored and
+    // indexnow:check says so. Nothing is kept until a store is named.
+    'history' => [
+        // null | psr16 | pdo. psr16: a ring buffer of `limit` records in the debounce.store cache (one process,
+        // development, small sites). pdo: a database table (production; run the migration of the package's
+        // docs/migrations.md first).
+        'store' => env('INDEXNOW_HISTORY_STORE'),
+        'limit' => 500,
+        // Cache key prefix of the psr16 store (null = debounce.key_prefix).
+        'key_prefix' => null,
+        'pdo' => [
+            // A PDO DSN when the table is not on a Laravel connection (sqlite:/var/data/indexnow.sqlite). Not both dsn and service.
+            'dsn' => env('INDEXNOW_HISTORY_PDO_DSN'),
+            // The database connection of config/database.php holding the table (null = the default connection).
+            'service' => null,
+            'table' => 'indexnow_submissions',
+        ],
+        // What `indexnow:history --purge` removes beyond; schedule it: Schedule::command('indexnow:history --purge')->daily().
+        'retention_days' => 90,
+    ],
 ];

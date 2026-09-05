@@ -40,8 +40,10 @@ final class CheckCommand extends Command
                 \assert($package instanceof OptionalPackage);
                 $verify = $app->make(IndexNowKitServiceProvider::VERIFY_PACKAGE);
                 \assert($verify instanceof OptionalPackage);
+                $history = $app->make(IndexNowKitServiceProvider::HISTORY_PACKAGE);
+                \assert($history instanceof OptionalPackage);
 
-                return ConfigFactory::build(\is_array($raw) ? $raw : [], (string) $app->environment(), $package->installed(), $verify->installed());
+                return ConfigFactory::build(\is_array($raw) ? $raw : [], (string) $app->environment(), $package->installed(), $verify->installed(), $history->installed());
             },
             (bool) $this->option('live'),
             \is_array($hosts) ? array_values(array_filter($hosts, 'is_string')) : (\is_string($hosts) ? $hosts : null),

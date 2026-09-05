@@ -61,15 +61,18 @@ use IndexNowKit\Laravel\Config\ConfigFactory;
 use IndexNowKit\Laravel\Console\CheckCommand;
 use IndexNowKit\Laravel\Console\ConfigCommand;
 use IndexNowKit\Laravel\Console\ExplainCommand;
+use IndexNowKit\Laravel\Console\HistoryNotInstalledCommand;
 use IndexNowKit\Laravel\Console\KeyGenerateCommand;
 use IndexNowKit\Laravel\Console\ModelLoader;
 use IndexNowKit\Laravel\Console\SitemapNotInstalledCommand;
+use IndexNowKit\Laravel\Console\StatusNotInstalledCommand;
 use IndexNowKit\Laravel\Console\SubmitCommand;
 use IndexNowKit\Laravel\Console\SubmitModelCommand;
 use IndexNowKit\Laravel\Eloquent\EloquentSubjectReader;
 use IndexNowKit\Laravel\Eloquent\IndexNowObserver;
 use IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface;
 use IndexNowKit\Laravel\Event\EventDispatcherBridge;
+use IndexNowKit\Laravel\History\HistoryServices;
 use IndexNowKit\Laravel\Http\KeyFileController;
 use IndexNowKit\Laravel\Queue\QueueDispatcher;
 use IndexNowKit\Laravel\Sitemap\SitemapServices;
@@ -104,7 +107,8 @@ use Throwable;
  * observer support, the key file route, the artisan commands and the flush points (app()->terminating(), queue
  * JobProcessed). The sitemap bindings come from `Sitemap\SitemapServices` when the optional `indexnowkit/sitemap`
  * is installed (`Adapter\OptionalPackage` under {@see SITEMAP_PACKAGE}); without it `indexnow:sitemap` is a stub and
- * `indexnow:check` prints one line.
+ * `indexnow:check` prints one line. The same for `Verify\VerifyServices` ({@see VERIFY_PACKAGE}) and
+ * `History\HistoryServices` ({@see HISTORY_PACKAGE}: the submission store, `indexnow:history`, `indexnow:status`).
  */
 final class IndexNowKitServiceProvider extends ServiceProvider
 {
@@ -137,6 +141,10 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     public const SITEMAP_PACKAGE = 'indexnowkit.sitemap_package';
     /** The same for `indexnowkit/verify` (`Verify\VerifyServices::package(false)` in tests). */
     public const VERIFY_PACKAGE = 'indexnowkit.verify_package';
+    /** The same for `indexnowkit/history` (`History\HistoryServices::package(false)` in tests). */
+    public const HISTORY_PACKAGE = 'indexnowkit.history_package';
+    /** Container id of the `check` line printed without `indexnowkit/history`. */
+    public const HISTORY_MISSING_CHECK = 'indexnowkit.check.history_missing';
     /**
      * Container id of the plain command submitter factory: `SubmitterFactoryInterface` itself when verify is off, the
      * undecorated factory when `verify.enabled` wraps the binding (`indexnow:sitemap --no-verify`).
@@ -144,7 +152,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     public const UNVERIFIED_SUBMITTER_FACTORY = 'indexnowkit.command_submitter_factory.unverified';
     /**
      * Container id of a closure returning the effective block of every installed optional package by block name
-     * (`['verify' => [...]]`): the extra sections of `indexnow:config` and `about`.
+     * (`['verify' => [...], 'history' => [...]]`): the extra sections of `indexnow:config`.
      */
     public const PACKAGE_BLOCKS = 'indexnowkit.package_blocks';
 
@@ -157,6 +165,9 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         }
         if (!$this->app->bound(self::VERIFY_PACKAGE)) {
             $this->app->instance(self::VERIFY_PACKAGE, VerifyServices::package());
+        }
+        if (!$this->app->bound(self::HISTORY_PACKAGE)) {
+            $this->app->instance(self::HISTORY_PACKAGE, HistoryServices::package());
         }
 
         $this->app->singleton(self::LOGGER, static function (Container $app): LoggerInterface {
@@ -188,7 +199,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         $this->publishes([__DIR__ . '/../config/indexnow.php' => $this->app->configPath('indexnow.php')], self::CONFIG_TAG);
         if ($this->app->runningInConsole()) {
             $this->registerAbout();
-            $this->commands([KeyGenerateCommand::class, CheckCommand::class, ConfigCommand::class, SubmitCommand::class, SubmitModelCommand::class, ExplainCommand::class, ...$this->sitemapPackage()->installed() ? SitemapServices::commands() : [SitemapNotInstalledCommand::class]]);
+            $this->commands([KeyGenerateCommand::class, CheckCommand::class, ConfigCommand::class, SubmitCommand::class, SubmitModelCommand::class, ExplainCommand::class, ...$this->sitemapPackage()->installed() ? SitemapServices::commands() : [SitemapNotInstalledCommand::class], ...self::historyPackage($this->app)->installed() ? HistoryServices::commands() : [HistoryNotInstalledCommand::class, StatusNotInstalledCommand::class]]);
         }
         $this->registerKeyFileRoute();
 
@@ -203,7 +214,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
 
     private function registerCore(): void
     {
-        $this->app->singleton(Config::class, static fn(Container $app): Config => ConfigFactory::create(self::raw($app), (string) $app->make(Application::class)->environment(), $app->make(self::LOGGER), self::package($app)->installed(), self::verifyPackage($app)->installed()));
+        $this->app->singleton(Config::class, static fn(Container $app): Config => ConfigFactory::create(self::raw($app), (string) $app->make(Application::class)->environment(), $app->make(self::LOGGER), self::package($app)->installed(), self::verifyPackage($app)->installed(), self::historyPackage($app)->installed()));
         $this->app->singleton(KeyProviderInterface::class, static fn(Container $app): KeyProviderInterface => StaticKeyProvider::fromConfig($app->make(Config::class)));
         // http.client: a container binding or class of a PSR-18 client; resolved on the first request only.
         $this->app->singleton(TransportInterface::class, static fn(Container $app): TransportInterface => TransportFactory::lazy($app->make(Config::class), static fn(string $id): mixed => $app->make($id)));
@@ -225,7 +236,8 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             static fn(string $store): mixed => $app->make(CacheFactory::class)->store($store === self::DEFAULT_DEBOUNCE_STORE ? null : $store),
             self::DEFAULT_DEBOUNCE_STORE,
         ));
-        // Where the submitter records every Result: nothing by default; bind your own (or indexnowkit/history) after the provider.
+        // Where the submitter records every Result: nothing by default; indexnowkit/history extends the binding with the
+        // store of `history.store` (History\HistoryServices); a binding of your own after the provider replaces either.
         $this->app->singleton(SubmissionStoreInterface::class, NullSubmissionStore::class);
         $this->app->singleton(self::EVENTS, static fn(Container $app): Psr14 => new EventDispatcherBridge($app->make(EventDispatcher::class)));
         $this->app->singleton(SubmitterInterface::class, static fn(Container $app): SubmitterInterface => new Submitter($app->make(ClientInterface::class), $app->make(Config::class), $app->make(DebounceStoreInterface::class), $app->make(self::LOGGER), $app->make(UrlNormalizerInterface::class), self::events($app), $app->make(SubmissionStoreInterface::class)));
@@ -317,10 +329,15 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         $this->app->singleton(SampleOptions::class);
         $this->app->singleton(ModelSampler::class, static fn(Container $app): ModelSampler => new ModelSampler($app->make(SubjectLoaderInterface::class), $app->make(IndexNowKit::class)));
         $this->registerConsole();
-        if (self::verifyPackage($this->app)->installed()) {
+        $verify = self::verifyPackage($this->app)->installed();
+        $history = self::historyPackage($this->app)->installed();
+        $this->app->singleton(self::PACKAGE_BLOCKS, static fn(Container $app): Closure => static fn(): array => [
+            ...$verify ? ['verify' => VerifyServices::effective($app)->toArray()] : [],
+            ...$history ? ['history' => HistoryServices::effective($app)->toArray()] : [],
+        ]);
+        if ($verify) {
             VerifyServices::register($this->app, self::LOGGER, self::EVENTS, self::FAILURE_CACHE, self::UNVERIFIED_SUBMITTER_FACTORY);
             $verifyChecks = [VerifyServices::CHECK, VerifyServices::DISPATCH_CHECK, VerifySampleCheck::class];
-            $this->app->singleton(self::PACKAGE_BLOCKS, static fn(Container $app): Closure => static fn(): array => ['verify' => VerifyServices::effective($app)->toArray()]);
         } else {
             $this->app->singleton(VerifySampleCheck::class, static function (Container $app): VerifySampleCheck {
                 /** @var array{verify?: array<string, mixed>} $defaults */
@@ -330,10 +347,23 @@ final class IndexNowKitServiceProvider extends ServiceProvider
                 return new VerifySampleCheck($app->make(SampleOptions::class), null, $package->checkLine(self::block($app, 'verify'), $defaults['verify'] ?? []), $package->checkLevel(self::block($app, 'verify'), $defaults['verify'] ?? []));
             });
             $this->app->singleton(self::UNVERIFIED_SUBMITTER_FACTORY, static fn(Container $app): SubmitterFactoryInterface => $app->make(SubmitterFactoryInterface::class));
-            $this->app->singleton(self::PACKAGE_BLOCKS, static fn(): Closure => static fn(): array => []);
             $verifyChecks = [VerifySampleCheck::class];
         }
-        $this->app->tag([QueueCheck::class, DebounceStoreCheck::class, $sitemapCheck, EloquentCheck::class, ...$verifyChecks], self::CHECK_TAG);
+        if ($history) {
+            HistoryServices::register($this->app, self::LOGGER, self::FAILURE_CACHE);
+            $historyCheck = HistoryServices::CHECK;
+        } else {
+            $this->app->singleton(self::HISTORY_MISSING_CHECK, static function (Container $app): CheckInterface {
+                /** @var array{history?: array<string, mixed>} $defaults */
+                $defaults = require __DIR__ . '/../config/indexnow.php';
+
+                return self::historyPackage($app)->check(self::block($app, 'history'), $defaults['history'] ?? []);
+            });
+            $this->app->singleton(HistoryNotInstalledCommand::class, static fn(Container $app): HistoryNotInstalledCommand => new HistoryNotInstalledCommand(self::historyPackage($app)->notInstalledMessage()));
+            $this->app->singleton(StatusNotInstalledCommand::class, static fn(Container $app): StatusNotInstalledCommand => new StatusNotInstalledCommand(self::historyPackage($app)->notInstalledMessage()));
+            $historyCheck = self::HISTORY_MISSING_CHECK;
+        }
+        $this->app->tag([QueueCheck::class, DebounceStoreCheck::class, $sitemapCheck, EloquentCheck::class, ...$verifyChecks, $historyCheck], self::CHECK_TAG);
         $this->app->singleton(CheckerInterface::class, static fn(Container $app): CheckerInterface => new Checker($app->make(Config::class), $app->make(KeyProviderInterface::class), $app->make(TransportInterface::class), $app->tagged(self::CHECK_TAG)));
         $this->app->singleton(KeyFileController::class, static fn(Container $app): KeyFileController => new KeyFileController($app->make(KeyFileResponder::class), $app->make(Config::class)->keyFileMaxAge, $app->make(Config::class)->hosts !== []));
     }
@@ -403,6 +433,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             'Dispatch' => \is_string($dispatch) ? $dispatch : $config->dispatch,
             'Debounce' => $config->debouncePerUrl . 's via ' . ($config->debounceStore ?? self::DEFAULT_DEBOUNCE_STORE),
             'Verify' => $this->aboutVerify(),
+            'History' => self::historyPackage($this->app)->installed() ? HistoryServices::aboutLine($this->app) : 'not installed (composer require indexnowkit/history)',
             'Check' => 'php artisan indexnow:check --strict',
         ];
     }
@@ -497,6 +528,14 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     private static function verifyPackage(Container $app): OptionalPackage
     {
         $package = $app->make(self::VERIFY_PACKAGE);
+        \assert($package instanceof OptionalPackage);
+
+        return $package;
+    }
+
+    private static function historyPackage(Container $app): OptionalPackage
+    {
+        $package = $app->make(self::HISTORY_PACKAGE);
         \assert($package instanceof OptionalPackage);
 
         return $package;

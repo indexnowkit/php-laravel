@@ -171,7 +171,9 @@ php artisan indexnow:check --live   # плюс реальный пробный �
 | `indexnow:submit <urls...>` | `-f, --force` игнорировать дебаунс · `--dry-run` · `--json` |
 | `indexnow:submit-model <model> [ids...]` | `--event=` · `--limit=` · `--explain` · `-f, --force` · `--dry-run` · `--json` |
 | `indexnow:explain <model> <id>` | `--event=` — правила, `when`, URL, ключ, дебаунс; ничего не отправляет |
-| `indexnow:sitemap [sitemap]` | `--changed-since="1 day"` · `--allow-foreign-hosts` · `-f, --force` · `--dry-run` · `--json` |
+| `indexnow:sitemap [sitemap]` | `--changed-since="1 day"` · `--allow-foreign-hosts` · `-f, --force` · `--dry-run` · `--json` · `--no-verify` |
+| `indexnow:history` | `--host=` · `--status=ok|failed|skipped|pending` · `--url=` · `--since=2h|3d|2026-09-01` · `--limit=` (по умолчанию 50) · `--json` · `--purge[=days]` |
+| `indexnow:status` | `--json` |
 | `indexnow:key:generate` | `-l, --length` · `--alphanumeric` · `--write-env[=FILE]` (по умолчанию `.env`) · `--force` ротация |
 
 `<model>` — FQCN или короткое имя в `App\Models`.
@@ -185,6 +187,32 @@ php artisan indexnow:check --live   # плюс реальный пробный �
 остальное работает как прежде: `indexnow:sitemap` отвечает `indexnowkit/sitemap is not installed: composer require
 indexnowkit/sitemap` и завершается с кодом 1, `indexnow:check` печатает `sitemap: not installed (…)`, блок `sitemap`
 в `config/indexnow.php` игнорируется. В логи ничего не пишется. Подробнее: [docs/sitemap.md](docs/sitemap.md).
+
+### История
+
+`composer require indexnowkit/history   # опционально: что, когда и с каким ответом отправлено`
+
+```php
+// config/indexnow.php
+'history' => [
+    'store' => env('INDEXNOW_HISTORY_STORE'),   // null (по умолчанию, ничего не хранится) | psr16 (кэш-стор дебаунса) | pdo
+    'pdo' => ['service' => null],               // соединение из config/database.php (null = по умолчанию) — либо 'dsn' => 'sqlite:/var/data/indexnow.sqlite'
+],
+```
+
+Каждый `Result` сабмиттера — flush в `app()->terminating()`, задача очереди, команды, URL, отсечённый
+`indexnowkit/verify` — записывается: нормализованные URL, хост, движок, статус, причина, HTTP-код, текст ошибки
+(никогда тело ответа или ключ). `php artisan indexnow:history` показывает записи, новые первыми (`--host`, `--status`,
+`--url`, `--since`, `--json`); `indexnow:history --purge` удаляет старше `history.retention_days`
+(`Schedule::command('indexnow:history --purge')->daily()`); `php artisan indexnow:status` печатает переключатели, режим
+доставки с соединением и очередью, стор дебаунса, счётчик 403 по хостам, последнюю успешную отправку и размер истории
+(`--json` для машин); `php artisan about` получает строку `History`. Для `pdo` нужна таблица: миграция — в
+[docs/migrations.md](https://github.com/indexnowkit/php/blob/main/packages/history/docs/migrations.md) пакета
+(`Schema::sql()`); пока её нет, `indexnow:check` печатает ошибку `history.store`, а сабмиттер логирует сбой, не ломая
+flush. `psr16` — кольцевой буфер из `history.limit` записей для одного процесса и небольших сайтов. Собственный
+`Submission\SubmissionStoreInterface`, привязанный вами, имеет приоритет. Без пакета `indexnow:history` и
+`indexnow:status` отвечают `indexnowkit/history is not installed: composer require indexnowkit/history` и завершаются с
+кодом 1, `indexnow:check` печатает `history: not installed (…)`.
 
 ## Конфигурация
 
@@ -244,7 +272,7 @@ PHP 8.2–8.5 (Laravel 13 требует PHP 8.3).
 
 ## Заметки для AI-ассистентов
 
-- Composer-пакет `indexnowkit/laravel` (Laravel 12 | 13, поверх `indexnowkit/core`); команда `sitemap` требует `indexnowkit/sitemap`. Конфигурация: `config/indexnow.php` и env-переменные `INDEXNOW_*`.
+- Composer-пакет `indexnowkit/laravel` (Laravel 12 | 13, поверх `indexnowkit/core`); команда `sitemap` требует `indexnowkit/sitemap`; предпроверка страниц — `indexnowkit/verify`; `indexnow:history` / `indexnow:status` — `indexnowkit/history` (`history.store: psr16|pdo`). Конфигурация: `config/indexnow.php` и env-переменные `INDEXNOW_*`.
 - Минимальный полный сниппет (все `use` на месте):
 
 ```php

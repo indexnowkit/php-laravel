@@ -20,12 +20,28 @@ contain breaking changes, listed under "Changed".
 - **`indexnow:check --sample=<url>` / `--sample-class=<FQCN>[:<id>]`** (repeatable; `Check\SampleOptions`,
   `Check\VerifySampleCheck`, `Check\ModelSampler` over the model loader).
 - **`indexnow:config --json`** prints the `verify` section; **`php artisan about`** has a `Verify` line.
-- `Config\ConfigFactory::factory()/create()/build()` take an appended `?bool $verifyInstalled = null`.
+- **`indexnowkit/history` wiring** (spec 17 §6.2). `config/indexnow.php` gets the `history` block (`store` from
+  `INDEXNOW_HISTORY_STORE`, `limit`, `key_prefix`, `pdo.dsn` from `INDEXNOW_HISTORY_PDO_DSN`, `pdo.service`,
+  `pdo.table`, `retention_days`); with the package and `history.store: psr16|pdo` the `SubmissionStoreInterface`
+  binding is extended (`History\HistoryServices`): the null store becomes `Psr16SubmissionStore` over the cache store
+  of `debounce.store` (the default store with `memory`/`none`) or `PdoSubmissionStore` over
+  `DB::connection(history.pdo.service)->getPdo()` / a PDO of `history.pdo.dsn` — never both — so sync flushes, the
+  queue job, the commands and the verify decorator record into it; a store the application binds itself is left
+  alone. The table is not created (see the package's `docs/migrations.md`). New bindings: `HistoryConfig`,
+  `Retry\ForbiddenCounter`, `HistoryRunner`, `StatusRunner`, the predicate under `IndexNowKitServiceProvider::HISTORY_PACKAGE`
+  (`HistoryServices::package(false)` in tests). Commands **`indexnow:history`** (`--host`, `--status`, `--url`,
+  `--since`, `--limit`, `--json`, `--purge[=days]`) and **`indexnow:status`** (`--json` per the package's
+  `status.schema.json`; the queue connection and queue as the adapter facts); without the package
+  `Console\HistoryNotInstalledCommand` / `StatusNotInstalledCommand` print the install line and exit 1. `check`
+  lines: `history.installed` (without the package), `history.store`, `history.records`. `indexnow:config --json`
+  prints the `history` section; `php artisan about` has a `History` line.
+- `Config\ConfigFactory::factory()/create()/build()` take an appended `?bool $verifyInstalled = null` and
+  `?bool $historyInstalled = null`.
 
 ### Changed
 
 - Requires `indexnowkit/core ^0.9`, `indexnowkit/console ^0.3` and (dev/suggest) `indexnowkit/sitemap ^0.5`,
-  `indexnowkit/verify ^0.1`.
+  `indexnowkit/verify ^0.1`, `indexnowkit/history ^0.1`.
 
 ## [0.10.0] — 2026-09-06
 

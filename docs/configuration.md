@@ -139,12 +139,34 @@ Needs `indexnowkit/sitemap` (`composer require indexnowkit/sitemap`); without th
 
 Details: [sitemap.md](sitemap.md).
 
+### `history`
+
+Needs `indexnowkit/history` (`composer require indexnowkit/history`); without the package the block is ignored and
+`indexnow:check` says so. Nothing is kept until `store` is set.
+
+```php
+'history' => [
+    'store' => env('INDEXNOW_HISTORY_STORE'),  // null | psr16 (ring buffer in the debounce.store cache) | pdo (a table)
+    'limit' => 500,                            // records the psr16 store keeps
+    'key_prefix' => null,                      // cache key prefix of the psr16 store (null = debounce.key_prefix)
+    'pdo' => [
+        'dsn' => env('INDEXNOW_HISTORY_PDO_DSN'),  // a PDO DSN when the table is not on a Laravel connection; not both dsn and service
+        'service' => null,                     // the config/database.php connection holding the table (null = default)
+        'table' => 'indexnow_submissions',     // [A-Za-z_][A-Za-z0-9_]*; the package's docs/migrations.md creates it
+    ],
+    'retention_days' => 90,                    // what indexnow:history --purge removes beyond
+],
+```
+
+`psr16` uses the cache store of `debounce.store` (the default store with `memory`/`none`); `pdo` takes
+`DB::connection(service)->getPdo()` or a PDO built from `dsn`. The table is never created by the package.
+
 ## Environment variables
 
 `INDEXNOW_KEY`, `INDEXNOW_PREVIOUS_KEY`, `INDEXNOW_KEY_LOCATION`, `INDEXNOW_BASE_URL`, `INDEXNOW_ENABLED`,
 `INDEXNOW_STRICT_HOSTS`, `INDEXNOW_ENGINES` (comma-separated), `INDEXNOW_DISPATCH`, `INDEXNOW_DRY_RUN`,
-`INDEXNOW_QUEUE_CONNECTION`, `INDEXNOW_QUEUE`, `INDEXNOW_DEBOUNCE_STORE`, `INDEXNOW_LOG_CHANNEL` are read by the
-shipped config file. Anything else goes through your published copy.
+`INDEXNOW_QUEUE_CONNECTION`, `INDEXNOW_QUEUE`, `INDEXNOW_DEBOUNCE_STORE`, `INDEXNOW_LOG_CHANNEL`, `INDEXNOW_VERIFY`,
+`INDEXNOW_HISTORY_STORE`, `INDEXNOW_HISTORY_PDO_DSN` are read by the shipped config file. Anything else goes through your published copy.
 
 ## Startup checks
 
