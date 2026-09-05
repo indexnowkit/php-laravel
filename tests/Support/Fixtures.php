@@ -33,6 +33,7 @@ final class Fixtures
             'base_url' => self::BASE_URL,
             'hosts' => ['example.de' => self::SECOND_KEY],
             'dispatch' => 'sync',
+            'dry_run' => false, // explicit: "testing" is not production, an unset dry_run fails check
             'debounce' => ['per_url' => 0, 'store' => 'memory'],
             'router' => ['locales' => ['en', 'de']],
             'collector' => ['detect_leaks' => false],

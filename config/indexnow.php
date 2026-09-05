@@ -52,8 +52,10 @@ return [
         'delay' => 0,
     ],
 
-    // Log the request instead of sending it.
-    'dry_run' => (bool) env('INDEXNOW_DRY_RUN', false),
+    // Log the request instead of sending it. Leave INDEXNOW_DRY_RUN unset in production. Outside production
+    // `indexnow:check` fails when a key is configured and this is unset (a staging copy would submit for real);
+    // set INDEXNOW_DRY_RUN=1 there, or INDEXNOW_DRY_RUN=0 when that environment submits on purpose.
+    'dry_run' => env('INDEXNOW_DRY_RUN'),
 
     'batch' => [
         'max_urls' => 10000,
