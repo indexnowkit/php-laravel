@@ -3,6 +3,36 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [0.8.0] — 2026-09-05
+
+Wave 0a of docs/spec/17 with core 0.6.0. **`indexnow:check` fails outside `production_environments` when a key is
+configured and `INDEXNOW_DRY_RUN` is not set** (a staging copy with the production key submits real URLs). A staging
+or preview environment that submits on purpose sets `INDEXNOW_DRY_RUN=0` and gets a warning instead.
+
+### Changed
+
+- Requires `indexnowkit/core ^0.6`; `indexnowkit/sitemap ^0.2` when installed. Laravel 12 and 13 (the badge and
+  CONTRIBUTING said 11 by mistake).
+- `config/indexnow.php` reads `'dry_run' => env('INDEXNOW_DRY_RUN')` without a cast, so an unset variable stays unset.
+  **A config file published before 0.8.0 keeps `(bool) env('INDEXNOW_DRY_RUN', false)`**: with it, the staging case
+  above is a warning, not an error, until the line is changed or the file re-published
+  (`php artisan vendor:publish --tag=indexnow-config --force`).
+
+### Added
+
+- `internetarchive` and `amazon` accepted in `engines` (core 0.6).
+
+### Fixed
+
+- `"App\Models\Post" is not an Eloquent model` names the base class the command expects.
+
+### Documentation
+
+- README: the runtime-rules snippet imports `IndexNow`, `IndexNowDefaults`, `RuleSet`; the facade
+  `Laravel\Facades\IndexNowKit` versus the core `IndexNowKit\IndexNowKit`; "Why this over X", "Notification, not
+  indexing", the issues link. [docs/bc.md](docs/bc.md): config keys, env vars, artisan commands, bindings, facade,
+  trait, job, route. The troubleshooting table quotes the new accessor message.
+
 ## [0.7.0] — 2026-09-05
 
 `indexnowkit/sitemap` is optional again (docs/spec/16, wave C): the package suggests it instead of requiring it.
