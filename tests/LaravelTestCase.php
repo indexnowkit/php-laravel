@@ -10,6 +10,7 @@ use IndexNowKit\Http\TransportInterface;
 use IndexNowKit\IndexNowKit;
 use IndexNowKit\Laravel\IndexNowKitServiceProvider;
 use IndexNowKit\Laravel\Tests\Support\Fixtures;
+use IndexNowKit\Laravel\Verify\VerifyServices;
 use IndexNowKit\Testing\ArrayLogger;
 use IndexNowKit\Testing\FakeTransport;
 use Orchestra\Testbench\TestCase;
@@ -34,6 +35,7 @@ abstract class LaravelTestCase extends TestCase
         // After the provider registered its bindings: bind() would drop an instance set earlier.
         $this->afterApplicationCreated(function (): void {
             $this->app->instance(TransportInterface::class, $this->transport);
+            $this->app->instance(VerifyServices::TRANSPORT, $this->transport); // the pre-flight GETs of indexnowkit/verify, when wired
             $this->app->instance(IndexNowKitServiceProvider::LOGGER, $this->logger);
         });
         parent::setUp();

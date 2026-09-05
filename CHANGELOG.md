@@ -3,6 +3,30 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [0.11.0] — Unreleased
+
+### Added
+
+- **`indexnowkit/verify` wiring** (spec 17 §6.1). `config/indexnow.php` gets the `verify` block (`enabled` from
+  `INDEXNOW_VERIFY`, `redirect`, `non_canonical`, `origin_error`, `delay`, `timeout`, `max_redirects`, `max_batch`,
+  `robots_cache_ttl`, `user_agent`); with the package and `verify.enabled: true` the `SubmitterInterface` and
+  `SubmitterFactoryInterface` bindings are extended with `VerifyingSubmitter` / `VerifyingSubmitterFactory`
+  (`Verify\VerifyServices`), so `dispatch: sync`, the queue job and every command verify. New bindings:
+  `VerifyConfig`, `RobotsCache`, `VerifyServices::TRANSPORT` (the pre-flight transport), the plain factory under
+  `IndexNowKitServiceProvider::UNVERIFIED_SUBMITTER_FACTORY`, the predicate under `VERIFY_PACKAGE`
+  (`VerifyServices::package(false)` in tests), `PACKAGE_BLOCKS` (the extra sections of `indexnow:config`).
+  `check` lines: `verify.installed`, `verify.dispatch` (warning with `dispatch: sync`), `verify.sample`. Without the
+  package the block is ignored as a whole (`check` says so) and `--sample` is an error naming the install line.
+- **`indexnow:check --sample=<url>` / `--sample-class=<FQCN>[:<id>]`** (repeatable; `Check\SampleOptions`,
+  `Check\VerifySampleCheck`, `Check\ModelSampler` over the model loader).
+- **`indexnow:config --json`** prints the `verify` section; **`php artisan about`** has a `Verify` line.
+- `Config\ConfigFactory::factory()/create()/build()` take an appended `?bool $verifyInstalled = null`.
+
+### Changed
+
+- Requires `indexnowkit/core ^0.9`, `indexnowkit/console ^0.3` and (dev/suggest) `indexnowkit/sitemap ^0.5`,
+  `indexnowkit/verify ^0.1`.
+
 ## [0.10.0] — 2026-09-06
 
 ### Changed

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IndexNowKit\Laravel;
 
+use Closure;
 use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Config\Repository;
@@ -52,7 +53,10 @@ use IndexNowKit\Key\KeyValidator;
 use IndexNowKit\Key\StaticKeyProvider;
 use IndexNowKit\Laravel\Check\CacheStoreProbe;
 use IndexNowKit\Laravel\Check\EloquentCheck;
+use IndexNowKit\Laravel\Check\ModelSampler;
 use IndexNowKit\Laravel\Check\QueueCheck;
+use IndexNowKit\Laravel\Check\SampleOptions;
+use IndexNowKit\Laravel\Check\VerifySampleCheck;
 use IndexNowKit\Laravel\Config\ConfigFactory;
 use IndexNowKit\Laravel\Console\CheckCommand;
 use IndexNowKit\Laravel\Console\ConfigCommand;
@@ -70,6 +74,7 @@ use IndexNowKit\Laravel\Http\KeyFileController;
 use IndexNowKit\Laravel\Queue\QueueDispatcher;
 use IndexNowKit\Laravel\Sitemap\SitemapServices;
 use IndexNowKit\Laravel\Url\LaravelRouteUrlResolver;
+use IndexNowKit\Laravel\Verify\VerifyServices;
 use IndexNowKit\Submission\NullSubmissionStore;
 use IndexNowKit\Submission\SubmissionStoreInterface;
 use IndexNowKit\Submitter;
@@ -130,6 +135,18 @@ final class IndexNowKitServiceProvider extends ServiceProvider
      * SitemapServices::package(false)]` boots as if the package were absent; `defineEnvironment()` is too late).
      */
     public const SITEMAP_PACKAGE = 'indexnowkit.sitemap_package';
+    /** The same for `indexnowkit/verify` (`Verify\VerifyServices::package(false)` in tests). */
+    public const VERIFY_PACKAGE = 'indexnowkit.verify_package';
+    /**
+     * Container id of the plain command submitter factory: `SubmitterFactoryInterface` itself when verify is off, the
+     * undecorated factory when `verify.enabled` wraps the binding (`indexnow:sitemap --no-verify`).
+     */
+    public const UNVERIFIED_SUBMITTER_FACTORY = 'indexnowkit.command_submitter_factory.unverified';
+    /**
+     * Container id of a closure returning the effective block of every installed optional package by block name
+     * (`['verify' => [...]]`): the extra sections of `indexnow:config` and `about`.
+     */
+    public const PACKAGE_BLOCKS = 'indexnowkit.package_blocks';
 
     public function register(): void
     {
@@ -137,6 +154,9 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         ParamExtractor::registerReader(new EloquentSubjectReader());
         if (!$this->app->bound(self::SITEMAP_PACKAGE)) {
             $this->app->instance(self::SITEMAP_PACKAGE, SitemapServices::package());
+        }
+        if (!$this->app->bound(self::VERIFY_PACKAGE)) {
+            $this->app->instance(self::VERIFY_PACKAGE, VerifyServices::package());
         }
 
         $this->app->singleton(self::LOGGER, static function (Container $app): LoggerInterface {
@@ -183,7 +203,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
 
     private function registerCore(): void
     {
-        $this->app->singleton(Config::class, static fn(Container $app): Config => ConfigFactory::create(self::raw($app), (string) $app->make(Application::class)->environment(), $app->make(self::LOGGER), self::package($app)->installed()));
+        $this->app->singleton(Config::class, static fn(Container $app): Config => ConfigFactory::create(self::raw($app), (string) $app->make(Application::class)->environment(), $app->make(self::LOGGER), self::package($app)->installed(), self::verifyPackage($app)->installed()));
         $this->app->singleton(KeyProviderInterface::class, static fn(Container $app): KeyProviderInterface => StaticKeyProvider::fromConfig($app->make(Config::class)));
         // http.client: a container binding or class of a PSR-18 client; resolved on the first request only.
         $this->app->singleton(TransportInterface::class, static fn(Container $app): TransportInterface => TransportFactory::lazy($app->make(Config::class), static fn(string $id): mixed => $app->make($id)));
@@ -294,8 +314,26 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         $this->app->singleton(QueueCheck::class);
         $this->app->singleton(DebounceStoreCheck::class, static fn(Container $app): DebounceStoreCheck => new DebounceStoreCheck($app->make(Config::class), $app->make(CacheStoreProbe::class)(...), self::DEFAULT_DEBOUNCE_STORE));
         $this->app->singleton(EloquentCheck::class, static fn(Container $app): EloquentCheck => new EloquentCheck((bool) (self::block($app, 'eloquent')['enabled'] ?? true) && $app->make(Config::class)->enabled));
-        $this->app->tag([QueueCheck::class, DebounceStoreCheck::class, $sitemapCheck, EloquentCheck::class], self::CHECK_TAG);
+        $this->app->singleton(SampleOptions::class);
+        $this->app->singleton(ModelSampler::class, static fn(Container $app): ModelSampler => new ModelSampler($app->make(SubjectLoaderInterface::class), $app->make(IndexNowKit::class)));
         $this->registerConsole();
+        if (self::verifyPackage($this->app)->installed()) {
+            VerifyServices::register($this->app, self::LOGGER, self::EVENTS, self::FAILURE_CACHE, self::UNVERIFIED_SUBMITTER_FACTORY);
+            $verifyChecks = [VerifyServices::CHECK, VerifyServices::DISPATCH_CHECK, VerifySampleCheck::class];
+            $this->app->singleton(self::PACKAGE_BLOCKS, static fn(Container $app): Closure => static fn(): array => ['verify' => VerifyServices::effective($app)->toArray()]);
+        } else {
+            $this->app->singleton(VerifySampleCheck::class, static function (Container $app): VerifySampleCheck {
+                /** @var array{verify?: array<string, mixed>} $defaults */
+                $defaults = require __DIR__ . '/../config/indexnow.php';
+                $package = self::verifyPackage($app);
+
+                return new VerifySampleCheck($app->make(SampleOptions::class), null, $package->checkLine(self::block($app, 'verify'), $defaults['verify'] ?? []), $package->checkLevel(self::block($app, 'verify'), $defaults['verify'] ?? []));
+            });
+            $this->app->singleton(self::UNVERIFIED_SUBMITTER_FACTORY, static fn(Container $app): SubmitterFactoryInterface => $app->make(SubmitterFactoryInterface::class));
+            $this->app->singleton(self::PACKAGE_BLOCKS, static fn(): Closure => static fn(): array => []);
+            $verifyChecks = [VerifySampleCheck::class];
+        }
+        $this->app->tag([QueueCheck::class, DebounceStoreCheck::class, $sitemapCheck, EloquentCheck::class, ...$verifyChecks], self::CHECK_TAG);
         $this->app->singleton(CheckerInterface::class, static fn(Container $app): CheckerInterface => new Checker($app->make(Config::class), $app->make(KeyProviderInterface::class), $app->make(TransportInterface::class), $app->tagged(self::CHECK_TAG)));
         $this->app->singleton(KeyFileController::class, static fn(Container $app): KeyFileController => new KeyFileController($app->make(KeyFileResponder::class), $app->make(Config::class)->keyFileMaxAge, $app->make(Config::class)->hosts !== []));
     }
@@ -364,8 +402,19 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             'Engines' => implode(', ', $config->engines),
             'Dispatch' => \is_string($dispatch) ? $dispatch : $config->dispatch,
             'Debounce' => $config->debouncePerUrl . 's via ' . ($config->debounceStore ?? self::DEFAULT_DEBOUNCE_STORE),
+            'Verify' => $this->aboutVerify(),
             'Check' => 'php artisan indexnow:check --strict',
         ];
+    }
+
+    private function aboutVerify(): string
+    {
+        if (!self::verifyPackage($this->app)->installed()) {
+            return 'not installed (composer require indexnowkit/verify)';
+        }
+        $verify = VerifyServices::effective($this->app);
+
+        return $verify->enabled ? \sprintf('enabled (redirect: %s, non_canonical: %s, origin_error: %s)', $verify->redirect->value, $verify->nonCanonical->value, $verify->originError->value) : 'installed, disabled (verify.enabled: false)';
     }
 
     private function registerKeyFileRoute(): void
@@ -440,6 +489,14 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     private static function package(Container $app): OptionalPackage
     {
         $package = $app->make(self::SITEMAP_PACKAGE);
+        \assert($package instanceof OptionalPackage);
+
+        return $package;
+    }
+
+    private static function verifyPackage(Container $app): OptionalPackage
+    {
+        $package = $app->make(self::VERIFY_PACKAGE);
         \assert($package instanceof OptionalPackage);
 
         return $package;

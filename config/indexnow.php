@@ -161,4 +161,27 @@ return [
         'spool_dir' => null,
         'fetch_retries' => 2,
     ],
+
+    // Pre-flight GET of every URL before it is submitted: noindex, robots.txt, canonical, redirects and origin
+    // errors are skipped, 404/410 pass as deletions. Needs indexnowkit/verify (composer require indexnowkit/verify);
+    // without the package this block is ignored and indexnow:check says so. Off by default.
+    'verify' => [
+        'enabled' => (bool) env('INDEXNOW_VERIFY', false),
+        // skip | follow: what a 3xx does (follow submits both URLs after a 301/308, the original after a 302/307).
+        'redirect' => 'skip',
+        // skip | replace: what a page with another canonical URL does.
+        'non_canonical' => 'skip',
+        // skip | send: what 401/403/5xx/timeouts do (skip is retryable by the queue).
+        'origin_error' => 'skip',
+        // Seconds to wait before the first GET of a queued batch (0-30); ignored with dispatch: sync.
+        'delay' => 0,
+        'timeout' => 5,
+        'max_redirects' => 3,
+        // A larger batch (the sitemap command) is sent unverified with one warning.
+        'max_batch' => 100,
+        // Seconds robots.txt is kept in the debounce.store cache (0 = per process only).
+        'robots_cache_ttl' => 3600,
+        // User-Agent of the pre-flight GETs (null = indexnowkit-verify/<version>); allow it in your WAF.
+        'user_agent' => null,
+    ],
 ];
