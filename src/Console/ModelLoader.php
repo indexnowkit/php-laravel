@@ -77,7 +77,7 @@ class ModelLoader implements SubjectLoaderInterface
     private static function modelClass(string $class): string
     {
         if (!is_subclass_of($class, Model::class)) {
-            throw new InvalidArgumentException(\sprintf('"%s" is not an Eloquent model.', $class));
+            throw new InvalidArgumentException(\sprintf('"%s" is not an Eloquent model (it does not extend %s): the command loads models by id through Eloquent.', $class, Model::class));
         }
 
         return $class;

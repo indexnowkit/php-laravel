@@ -13,7 +13,7 @@ channel at `debug`.
 | URLs resolved but no POST | `dispatch: queue` and no worker | `php artisan queue:work`, or `dispatch: sync` |
 | log: `rule "..." ignores this update (fields ...)` | `fields` filter did not match the changed attributes | add the attribute to `fields`, or drop the filter |
 | log: `Cannot generate route "posts.show": Missing required parameter` | the rule's `params` do not match the route | `params: ['post' => 'self']` for route model binding, or name every parameter |
-| log: `Cannot read "foo" on App\Models\Post: no property, getter or method found` | typo in an accessor | fix the accessor; attributes, casts, accessors, relations and methods are all valid |
+| log: `Cannot read "foo" on App\Models\Post: no method foo(), getFoo(), isFoo() or hasFoo(), no property "foo"…` | typo in an accessor | fix the accessor; attributes, casts, accessors, relations and methods are all valid |
 | a mass `update()` changed nothing in the index | bulk statements fire no events (A13) | `IndexNowKit::submitModels($query->get())` or `indexnow:submit-model` |
 | `attach()` on a pivot changed nothing | pivot operations fire no owner events | `$touches = ['posts']` on the related model, rule without `fields` filter |
 
