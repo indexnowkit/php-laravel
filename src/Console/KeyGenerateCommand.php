@@ -29,7 +29,7 @@ final class KeyGenerateCommand extends Command
             default => $this->defaultEnvFile($app),
         };
 
-        return $runner->run($this->getOutput(), is_numeric($length) ? (int) $length : 32, !(bool) $this->option('alphanumeric'), $envFile, (bool) $this->option('force'));
+        return $runner->run($this->getOutput(), is_numeric($length) ? (int) $length : 32, !(bool) $this->option('alphanumeric'), $envFile, (bool) $this->option('force'), (bool) $this->option('no-previous'), (bool) $this->option('yes'));
     }
 
     /** `--write-env` without a value arrives as null, the same as "not given"; the raw input tells them apart. */
