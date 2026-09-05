@@ -12,6 +12,8 @@ contain breaking changes, listed under "Changed".
   `IndexNowKit\Submission\ResultSummary`. Application code that names them (a decorator of the `SubmitterFactoryInterface` binding) changes the `use` line; nothing else.
 - The test suite requires `indexnowkit/testing ^0.1` (`require-dev`): the conformance kits and the H01–H05 assertions
   moved there from the core (`Testing\Conformance\KeyFileAssertions`, `CheckOutputAssertions`, `ReadmeAssertions`).
+- Requires `indexnowkit/console ^0.1`: the runners and definitions the artisan commands are built on moved there from the core
+  with their FQCN unchanged (`IndexNowKit\Console\*`); Composer installs it with this package, nothing to do.
 
 ### Added
 
