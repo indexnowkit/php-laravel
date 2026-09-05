@@ -118,7 +118,7 @@ Accessor'ы читают атрибуты, cast'ы, аксессоры и отн
 дефолт на модели (`protected $attributes = ['published' => false]`).
 
 Полная модель, типизированные параметры, наследование и таблица семантики:
-[справочник атрибута в core](https://github.com/indexnowkit/php/blob/main/packages/core/docs/attribute-reference.md).
+[справочник атрибута в core](https://github.com/indexnowkit/php/blob/main/packages/core/docs/attribute-reference.ru.md).
 
 ### Модели, которые нельзя аннотировать
 
@@ -197,7 +197,7 @@ indexnowkit/sitemap` и завершается с кодом 1, `indexnow:check`
 | Sitemap | [docs/sitemap.md](docs/sitemap.md) |
 | Расширение: заменяемые binding'и, свои резолверы и проверки | [docs/extending.md](docs/extending.md) |
 | Тестирование интеграции | [docs/testing.md](docs/testing.md) |
-| Диагностика | [docs/troubleshooting.md](docs/troubleshooting.md) |
+| Диагностика | [docs/troubleshooting.ru.md](docs/troubleshooting.ru.md) |
 
 ## Эксплуатация
 
@@ -207,7 +207,7 @@ indexnowkit/sitemap` и завершается с кодом 1, `indexnow:check`
 - [Правила мониторинга и фильтр Sentry](https://github.com/indexnowkit/php/blob/main/packages/core/docs/operations.md#monitoring-rules),
   [удалённые страницы](https://github.com/indexnowkit/php/blob/main/packages/core/docs/operations.md#deleted-pages-what-your-site-must-return),
   [что не отправлять](https://github.com/indexnowkit/php/blob/main/packages/core/docs/operations.md#what-not-to-submit).
-- [Мультидомен: хосты, www и apex, hreflang](docs/multi-domain.md) · [очередь](docs/queue.md) · [troubleshooting](docs/troubleshooting.md).
+- [Мультидомен: хосты, www и apex, hreflang](docs/multi-domain.md) · [очередь](docs/queue.md) · [troubleshooting](docs/troubleshooting.ru.md).
 
 ## Отладка
 

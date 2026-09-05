@@ -21,6 +21,7 @@ contain breaking changes, listed under "Changed".
   multi-domain and troubleshooting. docs/troubleshooting.md: "Staging submitted its URLs" and "Duplicates with
   `memory` and several workers". docs/multi-domain.md: www and apex, hreflang clusters through `locales: 'all'` /
   `locale_hosts` / `via:`.
+- Russian translation: docs/troubleshooting.ru.md (linked from README.ru.md).
 
 ## [0.8.0] — 2026-09-05
 

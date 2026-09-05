@@ -1,5 +1,7 @@
 # Troubleshooting
 
+[Русская версия](troubleshooting.ru.md)
+
 Start with `php artisan indexnow:check`, then `php artisan indexnow:explain "App\Models\Post" <id>`, then the log
 channel at `debug`.
 
