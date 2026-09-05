@@ -25,7 +25,7 @@ final class CheckCommand extends Command
 
     public function handle(CheckRunner $runner, Repository $config, Application $app): int
     {
-        $host = $this->option('host');
+        $hosts = $this->option('host');
         $probeUrl = $this->option('probe-url');
 
         return $runner->run(
@@ -39,8 +39,10 @@ final class CheckCommand extends Command
                 return ConfigFactory::build(\is_array($raw) ? $raw : [], (string) $app->environment(), $package->installed());
             },
             (bool) $this->option('live'),
-            \is_string($host) ? $host : null,
+            \is_array($hosts) ? array_values(array_filter($hosts, 'is_string')) : (\is_string($hosts) ? $hosts : null),
             \is_string($probeUrl) ? $probeUrl : null,
+            (bool) $this->option('json'),
+            (bool) $this->option('strict'),
         );
     }
 }
