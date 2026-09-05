@@ -24,4 +24,4 @@ levels are), and the service provider's private methods.
 
 ## Pinning
 
-`composer require indexnowkit/laravel:^0.8` gets every 0.8.x patch. Read the changelog before a minor.
+`composer require indexnowkit/laravel:^0.9` gets every 0.9.x patch. Read the changelog before a minor.
