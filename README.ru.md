@@ -257,7 +257,7 @@ use IndexNowKit\Laravel\Eloquent\IndexNowable;
 class Post extends Model { use IndexNowable; public function isPublished(): bool { return (bool) $this->published; } }
 ```
 
-- Проверка: `php artisan indexnow:check` (exit 1 при любой ошибке), `php artisan indexnow:explain App\\Models\\Post 1` (почему URL был или не был получен), `php artisan indexnow:submit-model App\\Models\\Post 1 --dry-run`.
+- Проверка: `php artisan indexnow:check` (exit 1 при любой ошибке), `php artisan indexnow:explain 'App\\Models\\Post' 1` (почему URL был или не был получен), `php artisan indexnow:submit-model 'App\\Models\\Post' 1 --dry-run`.
 - Ловушки:
   - `dispatch: auto` есть в Symfony (`auto` | `messenger` | `sync` | `none`) и Yii2 (`auto` | `queue` | `sync` | `none`), в Laravel **нет** (`queue` | `sync` | `none`).
   - Локали: `router.locales` в Laravel, `router.languages` в Yii2, `framework.enabled_locales` в Symfony; `locales: 'all'` у правила берёт этот список.

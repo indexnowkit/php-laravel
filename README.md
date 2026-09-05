@@ -259,7 +259,7 @@ use IndexNowKit\Laravel\Eloquent\IndexNowable;
 class Post extends Model { use IndexNowable; public function isPublished(): bool { return (bool) $this->published; } }
 ```
 
-- Verify: `php artisan indexnow:check` (exit 1 on any error), `php artisan indexnow:explain App\\Models\\Post 1` (why a URL was or was not produced), `php artisan indexnow:submit-model App\\Models\\Post 1 --dry-run`.
+- Verify: `php artisan indexnow:check` (exit 1 on any error), `php artisan indexnow:explain 'App\\Models\\Post' 1` (why a URL was or was not produced), `php artisan indexnow:submit-model 'App\\Models\\Post' 1 --dry-run`.
 - Pitfalls:
   - `dispatch: auto` exists in Symfony (`auto` | `messenger` | `sync` | `none`) and Yii2 (`auto` | `queue` | `sync` | `none`), **not** in Laravel (`queue` | `sync` | `none`).
   - Locales: `router.locales` in Laravel, `router.languages` in Yii2, `framework.enabled_locales` in Symfony; `locales: 'all'` on a rule uses that list.
