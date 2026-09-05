@@ -42,6 +42,7 @@ final class SitemapCommand extends Command
             force : (bool) $this->option('force'),
             dryRun : (bool) $this->option('dry-run'),
             json : (bool) $this->option('json'),
+            noVerify : (bool) $this->option('no-verify'),
         ));
     }
 }

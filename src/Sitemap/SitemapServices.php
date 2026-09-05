@@ -72,6 +72,7 @@ final class SitemapServices
             $app->make(SitemapConfig::class)->url,
             $app->make(ResultFormatterInterface::class),
             sitemapUrlOption: 'indexnow.sitemap.url',
+            unverifiedSubmitters: $app->make(IndexNowKitServiceProvider::UNVERIFIED_SUBMITTER_FACTORY),
         ));
     }
 

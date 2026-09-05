@@ -87,6 +87,23 @@ final class VerifyTest extends LaravelTestCase
         self::assertContains('verify sample https://www.example.com/posts/fine: HTTP 200, index, canonical: self, robots: allowed', array_column(array_filter($decoded['items'], static fn(array $i): bool => $i['code'] === 'verify.sample'), 'message'));
     }
 
+    #[TestDox('indexnow:sitemap verifies through the decorated command factory; the no-verify flag takes the plain one')]
+    public function testSitemapNoVerify(): void
+    {
+        $this->transport
+            ->onGet('https://www.example.com/sitemap.xml', new Response(200, '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://www.example.com/s1</loc></url><url><loc>https://www.example.com/s2</loc></url></urlset>'))
+            ->onGet('https://www.example.com/s1', new Response(200))
+            ->onGet('https://www.example.com/s2', new Response(200, '<head><meta name="robots" content="noindex"></head>'));
+
+        [$code] = $this->artisanCall('indexnow:sitemap', ['--force' => true]);
+        self::assertSame(ExitCode::SUCCESS, $code);
+        self::assertSame(['https://www.example.com/s1'], $this->sentUrls(), 'the command factory is decorated');
+
+        [$code] = $this->artisanCall('indexnow:sitemap', ['--force' => true, '--no-verify' => true]);
+        self::assertSame(ExitCode::SUCCESS, $code);
+        self::assertSame(['https://www.example.com/s1', 'https://www.example.com/s1', 'https://www.example.com/s2'], $this->sentUrls(), 'the plain factory submits everything');
+    }
+
     public function testConfigJsonAndAboutNameTheVerifySection(): void
     {
         [$code, $output] = $this->artisanCall('indexnow:config', ['--json' => true]);
