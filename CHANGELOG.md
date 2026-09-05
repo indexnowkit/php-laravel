@@ -24,6 +24,11 @@ contain breaking changes, listed under "Changed".
   `Url\UrlNormalizerFactory`. Tracking parameters are stripped by default.
 - `indexnow:explain --json` and the `when` values in the text output (console 0.2).
 - `indexnow:config` (`--json`): the effective configuration with masked keys plus this adapter's own keys (console 0.2).
+- **Results are Laravel events** (spec 17 §5.7): every `Result` goes through the event dispatcher
+  (`Event::listen(Result::class, …)`, Telescope, `Event::fake()`), from the submitter and the command submitters alike,
+  through the PSR-14 bridge `Event\EventDispatcherBridge` (container id `IndexNowKitServiceProvider::EVENTS`).
+- `php artisan about` has an `IndexNow` section: core version, enabled/dry-run, environment, base URL, masked key,
+  engines, dispatch, debounce, the check command.
 
 ## [0.9.0] — 2026-09-06
 

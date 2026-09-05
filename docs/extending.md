@@ -78,10 +78,15 @@ Add lines to the report; never throw — a failing check is an error line.
 
 ## Submission results
 
-`IndexNowKit::kit()->submitter->addListener(fn (Result $result) => ...)` receives every `Result` (engine, host,
-status, reason, HTTP code, URL count) for metrics or an admin log. Register it on the bound `SubmitterInterface`
-instance, which is what the observer, the job and the commands use (commands with `--force` / `--dry-run` build a
-separate submitter through `SubmitterFactoryInterface`).
+Every `Result` (engine, host, status, reason, HTTP code, URL count) is dispatched as a Laravel event, the object
+itself: `Event::listen(Result::class, fn (Result $result) => ...)` receives it, Telescope's events watcher lists it,
+`Event::fake()` catches it in tests. The submitter and the command submitters (`--force`, `--dry-run`, the sitemap
+command) publish through the same PSR-14 bridge (`IndexNowKitServiceProvider::EVENTS`). The lower-level
+`IndexNowKit::kit()->submitter->addListener(fn (Result $result) => ...)` still works and fires first.
+
+`php artisan about` has an `IndexNow` section: core version, enabled/dry-run, environment, base URL, the masked key,
+engines, dispatch, debounce — the first things a support request needs. `php artisan indexnow:config --json` is the
+full effective configuration.
 
 ## Reading model attributes
 

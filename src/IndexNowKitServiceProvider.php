@@ -13,6 +13,7 @@ use Illuminate\Contracts\Events\Dispatcher as EventDispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Foundation\CachesRoutes;
 use Illuminate\Contracts\Routing\UrlGenerator;
+use Illuminate\Foundation\Console\AboutCommand;
 use Illuminate\Log\LogManager;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Routing\Router;
@@ -64,6 +65,7 @@ use IndexNowKit\Laravel\Console\SubmitModelCommand;
 use IndexNowKit\Laravel\Eloquent\EloquentSubjectReader;
 use IndexNowKit\Laravel\Eloquent\IndexNowObserver;
 use IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface;
+use IndexNowKit\Laravel\Event\EventDispatcherBridge;
 use IndexNowKit\Laravel\Http\KeyFileController;
 use IndexNowKit\Laravel\Queue\QueueDispatcher;
 use IndexNowKit\Laravel\Sitemap\SitemapServices;
@@ -83,9 +85,12 @@ use IndexNowKit\Url\RouteUrlResolverInterface;
 use IndexNowKit\Url\UrlNormalizerFactory;
 use IndexNowKit\Url\UrlNormalizerInterface;
 use IndexNowKit\Url\UrlResolverInterface;
+use IndexNowKit\Version;
+use Psr\EventDispatcher\EventDispatcherInterface as Psr14;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Psr\SimpleCache\CacheInterface as Psr16;
+use Throwable;
 
 /**
  * Wires the core component graph into the container, one binding per core interface so an application can replace
@@ -111,6 +116,11 @@ final class IndexNowKitServiceProvider extends ServiceProvider
      * cache store behind `debounce.store`, null for `memory`/`none` (the counter then stays in the process).
      */
     public const FAILURE_CACHE = 'indexnowkit.failure_cache';
+    /**
+     * Container id of the PSR-14 dispatcher the submitter publishes every `Result` to: Laravel's event dispatcher
+     * behind `Event\EventDispatcherBridge`, so `Event::listen(Result::class, …)` and Telescope see the results.
+     */
+    public const EVENTS = 'indexnowkit.events';
     /** Container id of the `check` line printed without `indexnowkit/sitemap`. */
     public const SITEMAP_MISSING_CHECK = 'indexnowkit.check.sitemap_missing';
     /**
@@ -157,6 +167,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     {
         $this->publishes([__DIR__ . '/../config/indexnow.php' => $this->app->configPath('indexnow.php')], self::CONFIG_TAG);
         if ($this->app->runningInConsole()) {
+            $this->registerAbout();
             $this->commands([KeyGenerateCommand::class, CheckCommand::class, ConfigCommand::class, SubmitCommand::class, SubmitModelCommand::class, ExplainCommand::class, ...$this->sitemapPackage()->installed() ? SitemapServices::commands() : [SitemapNotInstalledCommand::class]]);
         }
         $this->registerKeyFileRoute();
@@ -196,7 +207,8 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         ));
         // Where the submitter records every Result: nothing by default; bind your own (or indexnowkit/history) after the provider.
         $this->app->singleton(SubmissionStoreInterface::class, NullSubmissionStore::class);
-        $this->app->singleton(SubmitterInterface::class, static fn(Container $app): SubmitterInterface => new Submitter($app->make(ClientInterface::class), $app->make(Config::class), $app->make(DebounceStoreInterface::class), $app->make(self::LOGGER), $app->make(UrlNormalizerInterface::class), null, $app->make(SubmissionStoreInterface::class)));
+        $this->app->singleton(self::EVENTS, static fn(Container $app): Psr14 => new EventDispatcherBridge($app->make(EventDispatcher::class)));
+        $this->app->singleton(SubmitterInterface::class, static fn(Container $app): SubmitterInterface => new Submitter($app->make(ClientInterface::class), $app->make(Config::class), $app->make(DebounceStoreInterface::class), $app->make(self::LOGGER), $app->make(UrlNormalizerInterface::class), self::events($app), $app->make(SubmissionStoreInterface::class)));
         $this->app->scoped(CollectorInterface::class, static fn(Container $app): CollectorInterface => Collector::fromConfig($app->make(Config::class), $app->make(self::LOGGER)));
         $this->app->singleton(KeyFileResponder::class, static fn(Container $app): KeyFileResponder => KeyFileResponder::fromConfig($app->make(Config::class), $app->make(KeyProviderInterface::class)));
         $this->app->singleton(IndexNowKit::class, static fn(Container $app): IndexNowKit => new IndexNowKit(
@@ -314,9 +326,46 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             $app->make(ThrottleInterface::class),
             $app->make(UrlNormalizerInterface::class),
             $app->make(self::LOGGER),
-            failureCache: self::failureCache($app),
-            store: $app->make(SubmissionStoreInterface::class),
+            self::events($app),
+            self::failureCache($app),
+            $app->make(SubmissionStoreInterface::class),
         ));
+    }
+
+    /** The `IndexNow` section of `php artisan about`: what a support request needs first, the key masked. */
+    private function registerAbout(): void
+    {
+        if (!class_exists(AboutCommand::class)) {
+            return;
+        }
+        AboutCommand::add('IndexNow', fn(): array => $this->aboutSection());
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function aboutSection(): array
+    {
+        $raw = self::raw($this->app);
+        try {
+            $config = $this->app->make(Config::class);
+        } catch (Throwable $e) {
+            return ['Core' => Version::get(), 'Configuration' => 'INVALID: ' . $e->getMessage()];
+        }
+        $dispatch = $raw['dispatch'] ?? $config->dispatch;
+
+        return [
+            'Core' => Version::get(),
+            'Enabled' => $config->enabled ? 'yes' : 'NO',
+            'Dry run' => $config->dryRun ? 'yes' : 'no',
+            'Environment' => $config->environment ?? '-',
+            'Base URL' => $config->baseUrl ?? '-',
+            'Key' => $config->key !== null ? KeyValidator::mask($config->key) : ($config->hosts !== [] ? \sprintf('%d host(s)', \count($config->hosts)) : 'NONE'),
+            'Engines' => implode(', ', $config->engines),
+            'Dispatch' => \is_string($dispatch) ? $dispatch : $config->dispatch,
+            'Debounce' => $config->debouncePerUrl . 's via ' . ($config->debounceStore ?? self::DEFAULT_DEBOUNCE_STORE),
+            'Check' => 'php artisan indexnow:check --strict',
+        ];
     }
 
     private function registerKeyFileRoute(): void
@@ -367,6 +416,13 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         $config = $app->make(Repository::class)->get('indexnow');
 
         return \is_array($config) ? $config : [];
+    }
+
+    private static function events(Container $app): ?Psr14
+    {
+        $events = $app->make(self::EVENTS);
+
+        return $events instanceof Psr14 ? $events : null;
     }
 
     private static function failureCache(Container $app): ?Psr16
