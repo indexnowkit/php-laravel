@@ -22,6 +22,7 @@ contain breaking changes, listed under "Changed".
   `memory` and several workers". docs/multi-domain.md: www and apex, hreflang clusters through `locales: 'all'` /
   `locale_hosts` / `via:`.
 - Russian translation: docs/troubleshooting.ru.md (linked from README.ru.md).
+- `homepage` in composer.json points at the docs site (https://indexnowkit.github.io/php/).
 
 ## [0.8.0] — 2026-09-05
 
