@@ -13,8 +13,9 @@
 
 ## Кого уведомляем
 
-**Яндекс, Bing (и DuckDuckGo через Bing), Naver, Seznam, Yep** — все движки, поддерживающие протокол
-[IndexNow](https://www.indexnow.org). Один запрос на общий endpoint доходит до всех.
+**Яндекс, Bing (и DuckDuckGo через Bing), Naver, Seznam, Yep, Internet Archive, Amazon** — все участники
+[реестра](https://www.indexnow.org/searchengines.json) протокола [IndexNow](https://www.indexnow.org). Один запрос на
+общий endpoint доходит до всех; перечислять движки явно нужно только чтобы отправить в один.
 
 **Google — нет.** Google не поддерживает IndexNow, пинг sitemap отключён (404), а Indexing API ограничен
 `JobPosting` / `BroadcastEvent`. Пакет не будет делать вид, что это не так.

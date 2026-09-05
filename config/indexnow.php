@@ -35,7 +35,7 @@ return [
 
     'max_url_length' => 2048,
 
-    // api | yandex | bing | naver | seznam | yep | an endpoint URL | an alias from engine_aliases.
+    // api | yandex | bing | naver | seznam | yep | internetarchive | amazon | an endpoint URL | an alias from engine_aliases.
     'engines' => explode(',', (string) env('INDEXNOW_ENGINES', 'api')),
     'engine_aliases' => [],
 

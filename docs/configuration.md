@@ -24,7 +24,7 @@ are logged at `warning`.
 | `environment` | `app()->environment()` | feeds the non-production dry-run safety net |
 | `production_environments` | `['prod', 'production']` | environments where a missing key is an error, not dry-run |
 | `max_url_length` | `2048` | longer URLs are `invalid_url` |
-| `engines` | `INDEXNOW_ENGINES`, `api` | `api`, `yandex`, `bing`, `naver`, `seznam`, `yep`, an endpoint URL or an alias |
+| `engines` | `INDEXNOW_ENGINES`, `api` | `api`, `yandex`, `bing`, `naver`, `seznam`, `yep`, `internetarchive`, `amazon`, an endpoint URL or an alias |
 | `engine_aliases` | `[]` | `alias => endpoint URL` |
 | `locale_hosts` | `[]` | `locale => host` for rules with `locales` and no `host` |
 | `dispatch` | `INDEXNOW_DISPATCH`, `queue` | `queue`, `sync`, `none` (see below) |
