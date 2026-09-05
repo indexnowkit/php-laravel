@@ -3,6 +3,18 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [Unreleased]
+
+### Added
+
+- `resources/boost/guidelines/core.blade.php`: Laravel Boost picks it up on `boost:install` (conventions, a model
+  snippet, verification).
+
+### Documentation
+
+- README: "Notes for AI assistants" (package, minimal complete snippet, verification, pitfalls across the adapters);
+  `ReadmeAiNotesTest` keeps it consistent with the commands and configuration keys.
+
 ## [0.8.0] — 2026-09-05
 
 Wave 0a of docs/spec/17 with core 0.6.0. **`indexnow:check` fails outside `production_environments` when a key is
