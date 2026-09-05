@@ -35,6 +35,18 @@ return [
 
     'max_url_length' => 2048,
 
+    // Canonical form of every URL before de-duplication, debounce and submission.
+    'normalizer' => [
+        // Drop utm_*, gclid, fbclid, yclid, … from the query (IndexNowKit\Url\CanonicalUrlNormalizer::TRACKING_PARAMS).
+        'strip_tracking_params' => true,
+        // More query parameters to drop: names ('ref') or prefixes ('mtm_*').
+        'tracking_params' => [],
+        // keep | add | strip: as generated, or always/never a trailing slash (a path with an extension is left alone). Match the site's canonical form.
+        'trailing_slash' => 'keep',
+        // Order the query parameters by name, so ?b=1&a=2 and ?a=2&b=1 are one URL.
+        'sort_query' => false,
+    ],
+
     // api | yandex | bing | naver | seznam | yep | internetarchive | amazon | an endpoint URL | an alias from engine_aliases.
     'engines' => explode(',', (string) env('INDEXNOW_ENGINES', 'api')),
     'engine_aliases' => [],

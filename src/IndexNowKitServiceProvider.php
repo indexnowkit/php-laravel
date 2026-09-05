@@ -79,7 +79,7 @@ use IndexNowKit\Url\GuardedUrlResolver;
 use IndexNowKit\Url\ObjectChangeHandler;
 use IndexNowKit\Url\ResolverLocatorInterface;
 use IndexNowKit\Url\RouteUrlResolverInterface;
-use IndexNowKit\Url\UrlNormalizer;
+use IndexNowKit\Url\UrlNormalizerFactory;
 use IndexNowKit\Url\UrlNormalizerInterface;
 use IndexNowKit\Url\UrlResolverInterface;
 use Psr\Log\LoggerInterface;
@@ -175,7 +175,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         $this->app->singleton(KeyProviderInterface::class, static fn(Container $app): KeyProviderInterface => StaticKeyProvider::fromConfig($app->make(Config::class)));
         // http.client: a container binding or class of a PSR-18 client; resolved on the first request only.
         $this->app->singleton(TransportInterface::class, static fn(Container $app): TransportInterface => TransportFactory::lazy($app->make(Config::class), static fn(string $id): mixed => $app->make($id)));
-        $this->app->singleton(UrlNormalizerInterface::class, static fn(Container $app): UrlNormalizerInterface => new UrlNormalizer($app->make(Config::class)->baseUrl, $app->make(Config::class)->maxUrlLength));
+        $this->app->singleton(UrlNormalizerInterface::class, static fn(Container $app): UrlNormalizerInterface => UrlNormalizerFactory::fromConfig($app->make(Config::class)));
         $this->app->singleton(ThrottleInterface::class, static fn(Container $app): ThrottleInterface => TokenBucket::fromConfig($app->make(Config::class), $app->make(self::LOGGER)));
         $this->app->singleton(self::FAILURE_CACHE, static function (Container $app): ?Psr16 {
             $store = $app->make(Config::class)->debounceStore ?? self::DEFAULT_DEBOUNCE_STORE;

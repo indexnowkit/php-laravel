@@ -19,6 +19,9 @@ contain breaking changes, listed under "Changed".
   is the container id of that `?Psr\SimpleCache\CacheInterface` (null with `memory`/`none`).
 - Binding `Submission\SubmissionStoreInterface` (`NullSubmissionStore` by default): the store the submitter and the
   command submitters record every `Result` in (core 0.8); rebind it after the provider to keep a history.
+- Configuration block `normalizer` (`strip_tracking_params`, `tracking_params`, `trailing_slash`, `sort_query`) in
+  `config/indexnow.php`: the canonical form of every URL (core 0.8); `UrlNormalizerInterface` is bound through
+  `Url\UrlNormalizerFactory`. Tracking parameters are stripped by default.
 
 ## [0.9.0] — 2026-09-06
 
