@@ -17,6 +17,8 @@ contain breaking changes, listed under "Changed".
 - The 403 escalation of `Client` counts in the cache store behind `debounce.store` (core 0.8; the store's
   `increment()` makes it atomic): one `critical` line per streak for every worker. `IndexNowKitServiceProvider::FAILURE_CACHE`
   is the container id of that `?Psr\SimpleCache\CacheInterface` (null with `memory`/`none`).
+- Binding `Submission\SubmissionStoreInterface` (`NullSubmissionStore` by default): the store the submitter and the
+  command submitters record every `Result` in (core 0.8); rebind it after the provider to keep a history.
 
 ## [0.9.0] — 2026-09-06
 

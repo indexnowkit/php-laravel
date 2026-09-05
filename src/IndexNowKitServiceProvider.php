@@ -67,6 +67,8 @@ use IndexNowKit\Laravel\Http\KeyFileController;
 use IndexNowKit\Laravel\Queue\QueueDispatcher;
 use IndexNowKit\Laravel\Sitemap\SitemapServices;
 use IndexNowKit\Laravel\Url\LaravelRouteUrlResolver;
+use IndexNowKit\Submission\NullSubmissionStore;
+use IndexNowKit\Submission\SubmissionStoreInterface;
 use IndexNowKit\Submitter;
 use IndexNowKit\SubmitterInterface;
 use IndexNowKit\Throttle\ThrottleInterface;
@@ -191,7 +193,9 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             static fn(string $store): mixed => $app->make(CacheFactory::class)->store($store === self::DEFAULT_DEBOUNCE_STORE ? null : $store),
             self::DEFAULT_DEBOUNCE_STORE,
         ));
-        $this->app->singleton(SubmitterInterface::class, static fn(Container $app): SubmitterInterface => new Submitter($app->make(ClientInterface::class), $app->make(Config::class), $app->make(DebounceStoreInterface::class), $app->make(self::LOGGER), $app->make(UrlNormalizerInterface::class)));
+        // Where the submitter records every Result: nothing by default; bind your own (or indexnowkit/history) after the provider.
+        $this->app->singleton(SubmissionStoreInterface::class, NullSubmissionStore::class);
+        $this->app->singleton(SubmitterInterface::class, static fn(Container $app): SubmitterInterface => new Submitter($app->make(ClientInterface::class), $app->make(Config::class), $app->make(DebounceStoreInterface::class), $app->make(self::LOGGER), $app->make(UrlNormalizerInterface::class), null, $app->make(SubmissionStoreInterface::class)));
         $this->app->scoped(CollectorInterface::class, static fn(Container $app): CollectorInterface => Collector::fromConfig($app->make(Config::class), $app->make(self::LOGGER)));
         $this->app->singleton(KeyFileResponder::class, static fn(Container $app): KeyFileResponder => KeyFileResponder::fromConfig($app->make(Config::class), $app->make(KeyProviderInterface::class)));
         $this->app->singleton(IndexNowKit::class, static fn(Container $app): IndexNowKit => new IndexNowKit(
@@ -310,6 +314,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             $app->make(UrlNormalizerInterface::class),
             $app->make(self::LOGGER),
             failureCache: self::failureCache($app),
+            store: $app->make(SubmissionStoreInterface::class),
         ));
     }
 
