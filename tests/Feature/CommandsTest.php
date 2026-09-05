@@ -40,6 +40,28 @@ final class CommandsTest extends LaravelTestCase
         CheckOutputAssertions::assertKeyFileHint($output, 403);
     }
 
+    #[TestDox('indexnow:config --json prints the effective configuration with masked keys and the Laravel-only keys')]
+    public function testConfig(): void
+    {
+        [$code, $output] = $this->artisanCall('indexnow:config', ['--json' => true]);
+
+        self::assertSame(0, $code, $output);
+        $decoded = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+        self::assertIsArray($decoded);
+        self::assertStringNotContainsString(self::KEY, $output);
+        self::assertSame(\IndexNowKit\Key\KeyValidator::mask(self::KEY), $decoded['config']['key']);
+        self::assertSame('https://www.example.com', $decoded['config']['base_url']);
+        self::assertSame(['locales' => ['en', 'de']], $decoded['adapter']['router'], 'the Laravel blocks are reported as given');
+        self::assertArrayHasKey('sitemap', $decoded['adapter']);
+        self::assertArrayNotHasKey('key', $decoded['adapter']);
+        self::assertArrayNotHasKey('debounce', $decoded['adapter'], 'core blocks are in config, not adapter');
+
+        [$code, $output] = $this->artisanCall('indexnow:config');
+        self::assertSame(0, $code);
+        self::assertStringContainsString('debounce.per_url', $output);
+        self::assertStringNotContainsString(self::KEY, $output);
+    }
+
     #[TestDox('indexnow:check --host limits the key file check to one host')]
     public function testCheckOnlyHost(): void
     {

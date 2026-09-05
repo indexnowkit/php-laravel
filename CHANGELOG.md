@@ -23,6 +23,7 @@ contain breaking changes, listed under "Changed".
   `config/indexnow.php`: the canonical form of every URL (core 0.8); `UrlNormalizerInterface` is bound through
   `Url\UrlNormalizerFactory`. Tracking parameters are stripped by default.
 - `indexnow:explain --json` and the `when` values in the text output (console 0.2).
+- `indexnow:config` (`--json`): the effective configuration with masked keys plus this adapter's own keys (console 0.2).
 
 ## [0.9.0] — 2026-09-06
 

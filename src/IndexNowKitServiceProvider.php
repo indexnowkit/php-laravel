@@ -54,6 +54,7 @@ use IndexNowKit\Laravel\Check\EloquentCheck;
 use IndexNowKit\Laravel\Check\QueueCheck;
 use IndexNowKit\Laravel\Config\ConfigFactory;
 use IndexNowKit\Laravel\Console\CheckCommand;
+use IndexNowKit\Laravel\Console\ConfigCommand;
 use IndexNowKit\Laravel\Console\ExplainCommand;
 use IndexNowKit\Laravel\Console\KeyGenerateCommand;
 use IndexNowKit\Laravel\Console\ModelLoader;
@@ -156,7 +157,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     {
         $this->publishes([__DIR__ . '/../config/indexnow.php' => $this->app->configPath('indexnow.php')], self::CONFIG_TAG);
         if ($this->app->runningInConsole()) {
-            $this->commands([KeyGenerateCommand::class, CheckCommand::class, SubmitCommand::class, SubmitModelCommand::class, ExplainCommand::class, ...$this->sitemapPackage()->installed() ? SitemapServices::commands() : [SitemapNotInstalledCommand::class]]);
+            $this->commands([KeyGenerateCommand::class, CheckCommand::class, ConfigCommand::class, SubmitCommand::class, SubmitModelCommand::class, ExplainCommand::class, ...$this->sitemapPackage()->installed() ? SitemapServices::commands() : [SitemapNotInstalledCommand::class]]);
         }
         $this->registerKeyFileRoute();
 
