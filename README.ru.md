@@ -7,9 +7,9 @@
 [![Downloads](https://img.shields.io/packagist/dt/indexnowkit/laravel)](https://packagist.org/packages/indexnowkit/laravel)
 [![CI](https://github.com/indexnowkit/php/actions/workflows/ci.yml/badge.svg)](https://github.com/indexnowkit/php/actions)
 [![Conformance](https://img.shields.io/badge/conformance-core%2022%2F22%20%C2%B7%20orm%2021%2F21%20%C2%B7%20http%206%2F6-brightgreen)](https://github.com/indexnowkit/spec)
-![PHP](https://img.shields.io/badge/php-%5E8.2-777bb4) ![Laravel](https://img.shields.io/badge/laravel-11%20%7C%2012%20%7C%2013-ff2d20)
+![PHP](https://img.shields.io/badge/php-%5E8.2-777bb4) ![Laravel](https://img.shields.io/badge/laravel-12%20%7C%2013-ff2d20)
 
-[English version](README.md)
+[English version](README.md) · Issues и pull requests: [github.com/indexnowkit/php](https://github.com/indexnowkit/php/issues) (репозитории `php-*` — read-only сплиты)
 
 ## Кого уведомляем
 
@@ -19,6 +19,25 @@
 
 **Google — нет.** Google не поддерживает IndexNow, пинг sitemap отключён (404), а Indexing API ограничен
 `JobPosting` / `BroadcastEvent`. Пакет не будет делать вид, что это не так.
+
+**Уведомление, не индексация.** IndexNow сообщает поисковику, что URL изменился; обойти и проиндексировать страницу — его
+решение и его сроки. Результат виден в Bing Webmaster Tools (IndexNow Insights) и в Яндекс.Вебмастере (Индексирование →
+Переобход страниц); полезная метрика — доля отправленных URL в индексе через несколько дней. Удалённые страницы: отдавайте
+410 (навсегда) или 404 (временно); при переезде — 301 и отправка обоих URL; soft-404 и редирект на главную вредят.
+Bing URL Submission API и Google Indexing API — другие протоколы, здесь не покрываются.
+
+## Почему это, а не X
+
+Большинство пакетов IndexNow — тонкий HTTP-клиент: URL собираете вы, вызываете вы, ответ читаете вы. Это семейство делает
+то, что на практике ломается:
+
+- **Объявлено на модели** (`#[IndexNow]`) и отправляется из хуков ORM — нет кода в контроллере, который можно забыть.
+- **После commit**, не на flush: откатившаяся транзакция ничего не объявляет.
+- **Дебаунс** (10 минут на URL, через ваш кэш), **батчи** до 10 000 URL, ключ на host из env.
+- **Ответы обработаны**: 202 (ключ проверяется), 422, 429 с `Retry-After` и повтором через вашу очередь, эскалация 403.
+- **`check` до первой отправки** говорит, что не так (файл ключа, движки, очередь, кэш, окружение); `explain` — почему URL ушёл или не ушёл.
+- **Одно ядро** под адаптерами Symfony, Laravel, Yii2 и Doctrine с общим conformance-набором: поведение одинаковое везде и описано один раз.
+
 
 ## Установка
 
@@ -85,11 +104,18 @@ Accessor'ы читают атрибуты, cast'ы, аксессоры и отн
 
 ```php
 // AppServiceProvider::boot()
+use IndexNowKit\Attribute\{IndexNow, IndexNowDefaults, RuleSet};
 use IndexNowKit\Laravel\Facades\IndexNowKit;
 
 IndexNowKit::observe(Product::class, [new IndexNow(route: 'products.show', params: ['product' => 'self'])], new IndexNowDefaults(when: 'is_active'));
 IndexNowKit::rules()->registerFor(Page::class, fn (Page $page): ?RuleSet => ...);   // решение по объекту
 ```
+
+Классов с именем `IndexNowKit` два. **Фасад** `IndexNowKit\Laravel\Facades\IndexNowKit` (выше) проксирует `IndexNowManager`
+пакета: `observe()`, `rules()`, `submitModel()`, `submitModels()`, `submit()`, `collect()`, `flush()`, `explain()`.
+**Ядро** `IndexNowKit\IndexNowKit` — тот же сервис без Eloquent-специфики; его инжектят по типу
+(`public function __construct(private IndexNowKit $indexNow)`) или берут из фасада через `IndexNowKit::kit()`.
+Импортируйте в файле один из них, второму дайте alias.
 
 ## Проверка
 
@@ -182,7 +208,7 @@ indexnowkit/sitemap` и завершается с кодом 1, `indexnow:check`
 Публичный API: ключи `config/indexnow.php`, имена и опции команд, binding'и контейнера из
 [docs/extending.md](docs/extending.md), `Facades\IndexNowKit` / `IndexNowManager`, `Eloquent\IndexNowable`,
 `Queue\SubmitUrlsJob`. Действуют правила core, включая интерфейсы «may grow»:
-[bc.md](https://github.com/indexnowkit/php-core/blob/main/docs/bc.md). До 1.0 минорная версия может ломать
+[bc.md](https://github.com/indexnowkit/php-core/blob/main/docs/bc.md); что стабильно в самом пакете: [docs/bc.md](docs/bc.md). До 1.0 минорная версия может ломать
 совместимость; каждое изменение перечислено в «Changed» в [CHANGELOG.md](CHANGELOG.md) с миграцией. Laravel 12 и 13,
 PHP 8.2–8.5 (Laravel 13 требует PHP 8.3).
 

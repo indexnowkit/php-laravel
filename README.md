@@ -7,9 +7,9 @@ One attribute on the model, one env variable, done.
 [![Downloads](https://img.shields.io/packagist/dt/indexnowkit/laravel)](https://packagist.org/packages/indexnowkit/laravel)
 [![CI](https://github.com/indexnowkit/php/actions/workflows/ci.yml/badge.svg)](https://github.com/indexnowkit/php/actions)
 [![Conformance](https://img.shields.io/badge/conformance-core%2022%2F22%20%C2%B7%20orm%2021%2F21%20%C2%B7%20http%206%2F6-brightgreen)](https://github.com/indexnowkit/spec)
-![PHP](https://img.shields.io/badge/php-%5E8.2-777bb4) ![Laravel](https://img.shields.io/badge/laravel-11%20%7C%2012%20%7C%2013-ff2d20)
+![PHP](https://img.shields.io/badge/php-%5E8.2-777bb4) ![Laravel](https://img.shields.io/badge/laravel-12%20%7C%2013-ff2d20)
 
-[Русская версия](README.ru.md)
+[Русская версия](README.ru.md) · Issues and pull requests: [github.com/indexnowkit/php](https://github.com/indexnowkit/php/issues) (the `php-*` repositories are read-only splits)
 
 ## Who gets notified
 
@@ -19,6 +19,26 @@ endpoint reaches all of them; name engines explicitly only to reach a single one
 
 **Google: no.** Google does not support IndexNow, its sitemap ping endpoint is gone (404) and the
 Indexing API is restricted to `JobPosting` / `BroadcastEvent`. This package will not pretend otherwise.
+
+**Notification, not indexing.** IndexNow tells an engine that a URL changed; whether and when the page is crawled and
+indexed is the engine's decision. See the result in Bing Webmaster Tools (IndexNow Insights) and Yandex.Webmaster
+(Indexing → Reindex pages); a useful metric is the share of submitted URLs in the index after a few days. Deleted
+pages: answer 410 (gone for good) or 404 (temporarily); for a move answer 301 and submit both URLs; a soft-404 or a
+redirect to the home page does harm. Bing's URL Submission API and Google's Indexing API are different protocols and
+not covered here.
+
+## Why this over X
+
+Most IndexNow packages are a thin HTTP client: you collect the URLs, you call it, you read the answer. This family
+does the part that goes wrong in practice:
+
+- **Declared on the model** (`#[IndexNow]`) and submitted from the ORM hooks — no controller code to forget.
+- **After the commit**, not on flush: a rolled-back transaction announces nothing.
+- **Debounce** (10 minutes per URL, shared through your cache), **batches** of up to 10 000 URLs, one key per host from env.
+- **Answers handled**: 202 (key pending), 422, 429 with `Retry-After` back-off and a retry through your queue, 403 escalation.
+- **`check` before the first submission** says what is wrong (key file, engines, queue, cache, environment); `explain` says why a URL was or was not sent.
+- **One core** under the Symfony, Laravel, Yii2 and Doctrine adapters with a shared conformance suite: the same behaviour everywhere, documented once.
+
 
 ## Install
 
@@ -86,11 +106,18 @@ Full model, typed parameters, inheritance and the semantics table:
 
 ```php
 // AppServiceProvider::boot()
+use IndexNowKit\Attribute\{IndexNow, IndexNowDefaults, RuleSet};
 use IndexNowKit\Laravel\Facades\IndexNowKit;
 
 IndexNowKit::observe(Product::class, [new IndexNow(route: 'products.show', params: ['product' => 'self'])], new IndexNowDefaults(when: 'is_active'));
 IndexNowKit::rules()->registerFor(Page::class, fn (Page $page): ?RuleSet => ...);   // decided per object
 ```
+
+Two classes are called `IndexNowKit`. The **facade** `IndexNowKit\Laravel\Facades\IndexNowKit` (above) proxies the
+`IndexNowManager` of this package: `observe()`, `rules()`, `submitModel()`, `submitModels()`, `submit()`, `collect()`,
+`flush()`, `explain()`. The **core** `IndexNowKit\IndexNowKit` is the same service without the Eloquent-specific parts;
+inject it by type (`public function __construct(private IndexNowKit $indexNow)`) or take it from the facade with
+`IndexNowKit::kit()`. Import one of them per file, or alias the other.
 
 ## Verify
 
@@ -184,7 +211,7 @@ An invalid configuration does not throw from a save: IndexNow is disabled, one `
 Public API: `config/indexnow.php` keys, command names and options, the container bindings listed in
 [docs/extending.md](docs/extending.md), `Facades\IndexNowKit` / `IndexNowManager`, `Eloquent\IndexNowable`,
 `Queue\SubmitUrlsJob`. The core's rules apply, including the "may grow" interfaces:
-[bc.md](https://github.com/indexnowkit/php-core/blob/main/docs/bc.md). Before 1.0 a minor version may break; every
+[bc.md](https://github.com/indexnowkit/php-core/blob/main/docs/bc.md); what this package itself keeps stable: [docs/bc.md](docs/bc.md). Before 1.0 a minor version may break; every
 break is listed under "Changed" in [CHANGELOG.md](CHANGELOG.md) with the migration. Laravel 12 and 13, PHP 8.2–8.5 (Laravel 13 needs PHP 8.3).
 
 ## Other frameworks
