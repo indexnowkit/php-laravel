@@ -14,6 +14,9 @@ contain breaking changes, listed under "Changed".
   (warnings fail the command: put it in the deploy pipeline) and a repeatable `--host` (console 0.2).
 - `indexnow:key:generate --force` keeps the replaced key as `INDEXNOW_PREVIOUS_KEY` and refuses a second rotation while
   it is set; `--no-previous` and `--yes` decide (console 0.2).
+- The 403 escalation of `Client` counts in the cache store behind `debounce.store` (core 0.8; the store's
+  `increment()` makes it atomic): one `critical` line per streak for every worker. `IndexNowKitServiceProvider::FAILURE_CACHE`
+  is the container id of that `?Psr\SimpleCache\CacheInterface` (null with `memory`/`none`).
 
 ## [0.9.0] — 2026-09-06
 

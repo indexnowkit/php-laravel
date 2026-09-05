@@ -82,6 +82,7 @@ use IndexNowKit\Url\UrlNormalizerInterface;
 use IndexNowKit\Url\UrlResolverInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Psr\SimpleCache\CacheInterface as Psr16;
 
 /**
  * Wires the core component graph into the container, one binding per core interface so an application can replace
@@ -102,6 +103,11 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     public const CONFIG_TAG = 'indexnow-config';
     /** The debounce store when `debounce.store` is unset: the application's default cache store. */
     public const DEFAULT_DEBOUNCE_STORE = 'cache';
+    /**
+     * Container id of the PSR-16 cache the 403 counter of `Client` lives in (`?Psr\SimpleCache\CacheInterface`): the
+     * cache store behind `debounce.store`, null for `memory`/`none` (the counter then stays in the process).
+     */
+    public const FAILURE_CACHE = 'indexnowkit.failure_cache';
     /** Container id of the `check` line printed without `indexnowkit/sitemap`. */
     public const SITEMAP_MISSING_CHECK = 'indexnowkit.check.sitemap_missing';
     /**
@@ -169,7 +175,16 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         $this->app->singleton(TransportInterface::class, static fn(Container $app): TransportInterface => TransportFactory::lazy($app->make(Config::class), static fn(string $id): mixed => $app->make($id)));
         $this->app->singleton(UrlNormalizerInterface::class, static fn(Container $app): UrlNormalizerInterface => new UrlNormalizer($app->make(Config::class)->baseUrl, $app->make(Config::class)->maxUrlLength));
         $this->app->singleton(ThrottleInterface::class, static fn(Container $app): ThrottleInterface => TokenBucket::fromConfig($app->make(Config::class), $app->make(self::LOGGER)));
-        $this->app->singleton(ClientInterface::class, static fn(Container $app): ClientInterface => new Client($app->make(TransportInterface::class), $app->make(KeyProviderInterface::class), $app->make(Config::class), $app->make(self::LOGGER), $app->make(ThrottleInterface::class), $app->make(UrlNormalizerInterface::class)));
+        $this->app->singleton(self::FAILURE_CACHE, static function (Container $app): ?Psr16 {
+            $store = $app->make(Config::class)->debounceStore ?? self::DEFAULT_DEBOUNCE_STORE;
+            if (\in_array($store, [DebounceStoreFactory::MEMORY, DebounceStoreFactory::NONE], true)) {
+                return null;
+            }
+            $cache = $app->make(CacheFactory::class)->store($store === self::DEFAULT_DEBOUNCE_STORE ? null : $store);
+
+            return $cache instanceof Psr16 ? $cache : null;
+        });
+        $this->app->singleton(ClientInterface::class, static fn(Container $app): ClientInterface => new Client($app->make(TransportInterface::class), $app->make(KeyProviderInterface::class), $app->make(Config::class), $app->make(self::LOGGER), $app->make(ThrottleInterface::class), $app->make(UrlNormalizerInterface::class), self::failureCache($app)));
         // debounce.store: "cache" (the default store), a store name, "memory" or "none".
         $this->app->singleton(DebounceStoreInterface::class, static fn(Container $app): DebounceStoreInterface => DebounceStoreFactory::fromConfig(
             $app->make(Config::class),
@@ -294,6 +309,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             $app->make(ThrottleInterface::class),
             $app->make(UrlNormalizerInterface::class),
             $app->make(self::LOGGER),
+            failureCache: self::failureCache($app),
         ));
     }
 
@@ -345,6 +361,13 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         $config = $app->make(Repository::class)->get('indexnow');
 
         return \is_array($config) ? $config : [];
+    }
+
+    private static function failureCache(Container $app): ?Psr16
+    {
+        $cache = $app->make(self::FAILURE_CACHE);
+
+        return $cache instanceof Psr16 ? $cache : null;
     }
 
     private function sitemapPackage(): OptionalPackage

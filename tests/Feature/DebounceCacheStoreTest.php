@@ -6,8 +6,11 @@ namespace IndexNowKit\Laravel\Tests\Feature;
 
 use IndexNowKit\Debounce\DebounceStoreInterface;
 use IndexNowKit\Debounce\Psr16DebounceStore;
+use IndexNowKit\Http\Response;
+use IndexNowKit\Laravel\IndexNowKitServiceProvider;
 use IndexNowKit\Laravel\Tests\LaravelTestCase;
 use PHPUnit\Framework\Attributes\TestDox;
+use Psr\SimpleCache\CacheInterface;
 
 final class DebounceCacheStoreTest extends LaravelTestCase
 {
@@ -30,5 +33,18 @@ final class DebounceCacheStoreTest extends LaravelTestCase
 
         $this->artisan('indexnow:submit', ['urls' => ['/a'], '--force' => true])->assertExitCode(0);
         self::assertCount(3, $this->transport->posts, '--force bypasses the window');
+    }
+
+    #[TestDox('the 403 counter of the client lives in the same cache store (PSR-16), with the debounce key prefix')]
+    public function testFailureCacheIsTheDebounceStore(): void
+    {
+        $cache = $this->app->make(IndexNowKitServiceProvider::FAILURE_CACHE);
+        self::assertInstanceOf(CacheInterface::class, $cache);
+
+        $this->transport->willRespond(new Response(403), new Response(403));
+        $this->kit()->submit(['/a']);
+        $this->kit()->submit(['/b']);
+
+        self::assertSame(2, $this->app->make('cache')->store('array')->get('inx_403.www.example.com'), 'counted through the store\'s increment()');
     }
 }
