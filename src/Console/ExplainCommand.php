@@ -29,6 +29,6 @@ final class ExplainCommand extends Command
         $id = $this->argument('id');
         $event = $this->option('event');
 
-        return $runner->run($this->getOutput(), \is_string($model) ? $model : '', \is_scalar($id) ? (string) $id : '', \is_string($event) ? $event : '');
+        return $runner->run($this->getOutput(), \is_string($model) ? $model : '', \is_scalar($id) ? (string) $id : '', \is_string($event) ? $event : '', (bool) $this->option('json'));
     }
 }

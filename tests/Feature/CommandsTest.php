@@ -161,7 +161,7 @@ final class CommandsTest extends LaravelTestCase
         [$code, $output] = $this->artisanCall('indexnow:explain', ['model' => Post::class, 'id' => (string) $post->id]);
         self::assertSame(0, $code);
         self::assertStringContainsString('Rule "posts.show" (route posts.show)', $output);
-        self::assertStringContainsString('when: published -> false', $output);
+        self::assertMatchesRegularExpression('/when: published \((false|0)\) -> false/', $output, 'the value the condition read is shown');
         self::assertStringContainsString('No URL would be submitted', $output);
 
         $post->update(['published' => true]);

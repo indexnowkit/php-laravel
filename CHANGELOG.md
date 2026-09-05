@@ -22,6 +22,7 @@ contain breaking changes, listed under "Changed".
 - Configuration block `normalizer` (`strip_tracking_params`, `tracking_params`, `trailing_slash`, `sort_query`) in
   `config/indexnow.php`: the canonical form of every URL (core 0.8); `UrlNormalizerInterface` is bound through
   `Url\UrlNormalizerFactory`. Tracking parameters are stripped by default.
+- `indexnow:explain --json` and the `when` values in the text output (console 0.2).
 
 ## [0.9.0] — 2026-09-06
 
