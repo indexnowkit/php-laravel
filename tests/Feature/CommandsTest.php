@@ -8,7 +8,7 @@ use Illuminate\Contracts\Console\Kernel;
 use IndexNowKit\Http\Response;
 use IndexNowKit\Laravel\Tests\Fixtures\Post;
 use IndexNowKit\Laravel\Tests\LaravelTestCase;
-use IndexNowKit\Testing\CheckOutputAssertions;
+use IndexNowKit\Testing\Conformance\CheckOutputAssertions;
 use PHPUnit\Framework\Attributes\TestDox;
 use Symfony\Component\Console\Output\BufferedOutput;
 

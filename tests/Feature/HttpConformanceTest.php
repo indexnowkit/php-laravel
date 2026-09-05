@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use IndexNowKit\Collector\CollectorInterface;
 use IndexNowKit\Laravel\Tests\Fixtures\Post;
 use IndexNowKit\Laravel\Tests\LaravelTestCase;
-use IndexNowKit\Testing\KeyFileAssertions;
+use IndexNowKit\Testing\Conformance\KeyFileAssertions;
 use PHPUnit\Framework\Attributes\TestDox;
 use RuntimeException;
 

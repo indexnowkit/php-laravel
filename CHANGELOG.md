@@ -10,6 +10,8 @@ contain breaking changes, listed under "Changed".
 - Requires core 0.7: `Console\SubmitterFactory` / `Console\SubmitterFactoryInterface` are now
   `IndexNowKit\Adapter\SubmitterFactory` / `IndexNowKit\Adapter\SubmitterFactoryInterface`, `Console\ResultSummary` is
   `IndexNowKit\Submission\ResultSummary`. Application code that names them (a decorator of the `SubmitterFactoryInterface` binding) changes the `use` line; nothing else.
+- The test suite requires `indexnowkit/testing ^0.1` (`require-dev`): the conformance kits and the H01–H05 assertions
+  moved there from the core (`Testing\Conformance\KeyFileAssertions`, `CheckOutputAssertions`, `ReadmeAssertions`).
 
 ### Added
 

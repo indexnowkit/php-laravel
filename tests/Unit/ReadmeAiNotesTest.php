@@ -6,7 +6,7 @@ namespace IndexNowKit\Laravel\Tests\Unit;
 
 use IndexNowKit\Laravel\Config\ConfigFactory;
 use IndexNowKit\Sitemap\SitemapConfig;
-use IndexNowKit\Testing\ReadmeAssertions;
+use IndexNowKit\Testing\Conformance\ReadmeAssertions;
 use PHPUnit\Framework\TestCase;
 
 /**
