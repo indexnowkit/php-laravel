@@ -199,6 +199,16 @@ indexnowkit/sitemap` и завершается с кодом 1, `indexnow:check`
 | Тестирование интеграции | [docs/testing.md](docs/testing.md) |
 | Диагностика | [docs/troubleshooting.md](docs/troubleshooting.md) |
 
+## Эксплуатация
+
+- [Чеклист production](https://github.com/indexnowkit/php/blob/main/packages/core/docs/operations.md#production-checklist)
+  — ключ и base URL, `check` в деплое, `strict_hosts`, общий debounce store, очередь под мониторингом,
+  стейджинг, который не может отправлять, три строки для алертов.
+- [Правила мониторинга и фильтр Sentry](https://github.com/indexnowkit/php/blob/main/packages/core/docs/operations.md#monitoring-rules),
+  [удалённые страницы](https://github.com/indexnowkit/php/blob/main/packages/core/docs/operations.md#deleted-pages-what-your-site-must-return),
+  [что не отправлять](https://github.com/indexnowkit/php/blob/main/packages/core/docs/operations.md#what-not-to-submit).
+- [Мультидомен: хосты, www и apex, hreflang](docs/multi-domain.md) · [очередь](docs/queue.md) · [troubleshooting](docs/troubleshooting.md).
+
 ## Отладка
 
 1. **`php artisan indexnow:explain "App\Models\Post" 42`** проходит весь путь решения для одной модели — правила,

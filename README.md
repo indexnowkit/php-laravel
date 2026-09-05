@@ -202,6 +202,16 @@ Every key of `config/indexnow.php`, its default and what it does: [docs/configur
 | Testing your integration | [docs/testing.md](docs/testing.md) |
 | Troubleshooting | [docs/troubleshooting.md](docs/troubleshooting.md) |
 
+## Operations
+
+- [Production checklist](https://github.com/indexnowkit/php/blob/main/packages/core/docs/operations.md#production-checklist)
+  — key and base URL, `check` in the deploy pipeline, `strict_hosts`, a shared debounce store, a monitored queue,
+  staging that cannot submit, the three lines to alert on.
+- [Monitoring rules and the Sentry filter](https://github.com/indexnowkit/php/blob/main/packages/core/docs/operations.md#monitoring-rules),
+  [deleted pages](https://github.com/indexnowkit/php/blob/main/packages/core/docs/operations.md#deleted-pages-what-your-site-must-return),
+  [what not to submit](https://github.com/indexnowkit/php/blob/main/packages/core/docs/operations.md#what-not-to-submit).
+- [Multi-domain: hosts, www and apex, hreflang](docs/multi-domain.md) · [queue](docs/queue.md) · [troubleshooting](docs/troubleshooting.md).
+
 ## Debugging
 
 1. **`php artisan indexnow:explain "App\Models\Post" 42`** walks the decision path for one model — rules, event

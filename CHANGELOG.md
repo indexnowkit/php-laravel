@@ -17,6 +17,10 @@ contain breaking changes, listed under "Changed".
   and runs the model through the test application against the FakeTransport.
 - README: "Notes for AI assistants" (package, minimal complete snippet, verification, pitfalls across the adapters);
   `ReadmeAiNotesTest` keeps it consistent with the commands and configuration keys.
+- README "Operations": the production checklist first, then monitoring rules, deleted pages, what not to submit,
+  multi-domain and troubleshooting. docs/troubleshooting.md: "Staging submitted its URLs" and "Duplicates with
+  `memory` and several workers". docs/multi-domain.md: www and apex, hreflang clusters through `locales: 'all'` /
+  `locale_hosts` / `via:`.
 
 ## [0.8.0] — 2026-09-05
 

@@ -34,6 +34,23 @@ channel at `debug`.
 - A rolled-back transaction submits nothing; a savepoint rollback inside `DB::transaction()` drops only the inner
   URLs.
 
+## Staging submitted its URLs
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Bing/Yandex report URLs of `staging.example.com`, or `failed` / `unprocessable` (422) for them in the log | the staging copy runs with the production key and no `dry_run`; its URLs were generated on its own host | outside production set `INDEXNOW_DRY_RUN=1` (or `INDEXNOW_ENABLED=0`); `check` fails on such a copy since core 0.6 |
+| the staging host serves the production key file | `key_file.enabled` is on everywhere | `key_file.enabled: false` outside production, so no engine can verify the key on that host |
+| the engines indexed staging pages | the staging host answered `200` for them and served the key | return `410` (or `noindex` + block in `robots.txt`) on staging, and rotate the key if it was exposed |
+| a preview environment must submit on purpose | — | say `dry_run: false` explicitly in that environment; `check` then warns instead of failing |
+
+## Duplicates with `memory` and several workers
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| the same URL is submitted by every worker within minutes | `debounce.store: memory` is per process; each web worker and queue worker keeps its own window | `debounce.store` = a shared cache; `check` warns about `memory` |
+| duplicates right after a cache outage | the store fails open: no deduplication while the cache is down | expected and bounded (one request per URL); watch the `debounce store unavailable` warning rate |
+| duplicates after a deploy | the shared cache was flushed, or `debounce.key_prefix` changed | harmless once; keep the prefix stable per application |
+
 ## Testing environments
 
 Outside `production_environments` a missing key enables `dry_run`: requests are logged, not sent. `check` warns
