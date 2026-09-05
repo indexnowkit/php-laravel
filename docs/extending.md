@@ -32,7 +32,7 @@ The service provider registers one container binding per core interface. Replace
 | `IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface` | `LaravelRouteUrlResolver` | which model field a `{post:slug}` parameter binds to (drives rename detection) when routes come from elsewhere |
 | `IndexNowKit\Console\SubjectLoaderInterface` | `Console\ModelLoader` | model lookup (tenant scoping, another id format) |
 | `IndexNowKit\Console\ResultFormatterInterface` | `ResultRenderer` | command output (your JSON envelope or table style) |
-| `IndexNowKit\Console\SubmitterFactoryInterface` | `SubmitterFactory` | what `--force` / `--dry-run` submit through |
+| `IndexNowKit\Adapter\SubmitterFactoryInterface` | `SubmitterFactory` | what `--force` / `--dry-run` submit through |
 | `IndexNowKit\Console\Vocabulary`, `Console\*Runner` | Laravel words; the command bodies | reuse a runner from your own command (a tenant loop over `SubmitSubjectsRunner`) |
 | `indexnowkit.logger` | `Log::channel(logging.channel)` | a PSR-3 logger of your own (tests: `ArrayLogger`) |
 

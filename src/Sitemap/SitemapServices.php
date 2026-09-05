@@ -6,8 +6,8 @@ namespace IndexNowKit\Laravel\Sitemap;
 
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Container\Container;
+use IndexNowKit\Adapter\SubmitterFactoryInterface;
 use IndexNowKit\Console\ResultFormatterInterface;
-use IndexNowKit\Console\SubmitterFactoryInterface;
 use IndexNowKit\Exception\ConfigurationException;
 use IndexNowKit\Http\TransportInterface;
 use IndexNowKit\IndexNowKit;
