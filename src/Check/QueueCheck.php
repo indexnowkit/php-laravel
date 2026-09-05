@@ -19,7 +19,7 @@ final class QueueCheck implements CheckInterface
     {
         $dispatch = $this->config->get('indexnow.dispatch');
         if ($dispatch !== 'queue') {
-            $report->ok(\sprintf('dispatch "%s": URLs are %s', \is_string($dispatch) ? $dispatch : 'sync', $dispatch === 'none' ? 'collected but never sent (drain the collector yourself)' : 'sent synchronously when the request or command terminates; 429/5xx are not retried'));
+            $report->ok(\sprintf('dispatch "%s": URLs are %s', \is_string($dispatch) ? $dispatch : 'sync', $dispatch === 'none' ? 'collected but never sent (drain the collector yourself)' : 'sent synchronously when the request or command terminates; 429/5xx are not retried'), 'queue.dispatch');
 
             return;
         }
@@ -28,7 +28,7 @@ final class QueueCheck implements CheckInterface
         $connection = \is_string($connection) ? $connection : 'sync';
         $settings = $this->config->get('queue.connections.' . $connection);
         if (!\is_array($settings)) {
-            $report->error(\sprintf('queue: connection "%s" is not defined in config/queue.php; SubmitUrlsJob cannot be queued.', $connection));
+            $report->error(\sprintf('queue: connection "%s" is not defined in config/queue.php; SubmitUrlsJob cannot be queued.', $connection), 'queue.connection');
 
             return;
         }
@@ -36,10 +36,10 @@ final class QueueCheck implements CheckInterface
         $queue = $this->config->get('indexnow.queue.queue');
         $target = \sprintf('connection "%s" (%s)%s', $connection, \is_string($driver) ? $driver : '?', \is_string($queue) && $queue !== '' ? ', queue "' . $queue . '"' : '');
         if ($driver === 'sync') {
-            $report->warning(\sprintf('queue: %s runs SubmitUrlsJob inline; 429/5xx are not retried. Use a real queue driver in production.', $target));
+            $report->warning(\sprintf('queue: %s runs SubmitUrlsJob inline; 429/5xx are not retried. Use a real queue driver in production.', $target), 'queue.driver');
 
             return;
         }
-        $report->ok(\sprintf('queue: SubmitUrlsJob goes to %s; run a worker (php artisan queue:work) or nothing is sent', $target));
+        $report->ok(\sprintf('queue: SubmitUrlsJob goes to %s; run a worker (php artisan queue:work) or nothing is sent', $target), 'queue.driver');
     }
 }

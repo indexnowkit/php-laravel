@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace IndexNowKit\Laravel\Tests\Feature;
 
 use Illuminate\Contracts\Config\Repository;
+use IndexNowKit\Check\CheckerInterface;
 use IndexNowKit\Check\CheckInterface;
 use IndexNowKit\Check\CheckLevel;
 use IndexNowKit\Check\CheckReport;
@@ -17,6 +18,7 @@ use IndexNowKit\Laravel\Tests\LaravelTestCase;
 use IndexNowKit\Laravel\Tests\Support\Fixtures;
 use IndexNowKit\Sitemap\Check\SitemapSpoolCheck;
 use IndexNowKit\Sitemap\SitemapConfig;
+use IndexNowKit\Testing\Conformance\CheckOutputAssertions;
 use PHPUnit\Framework\Attributes\TestDox;
 
 /**
@@ -72,6 +74,14 @@ final class ChecksTest extends LaravelTestCase
         self::assertSame([CheckLevel::Error], $this->levels($failing));
         self::assertStringContainsString('is not usable', $this->messages($failing)[0]);
         self::assertInstanceOf(DebounceStoreCheck::class, $this->app->make(DebounceStoreCheck::class), 'the provider binds the check with the probe');
+    }
+
+    #[TestDox('every line of the whole check, adapter checks included, carries a code (the API of check --json)')]
+    public function testEveryCheckLineHasACode(): void
+    {
+        $report = $this->app->make(CheckerInterface::class)->run();
+
+        CheckOutputAssertions::assertEveryItemHasCode($report, 'queue.dispatch', DebounceStoreCheck::CODE, 'eloquent.enabled', SitemapSpoolCheck::CODE, 'key_file.status');
     }
 
     #[TestDox('sitemap spool: disabled prints nothing; memory, writable disk, unwritable disk with auto/disk')]

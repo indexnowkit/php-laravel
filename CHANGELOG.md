@@ -3,6 +3,14 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [Unreleased]
+
+### Added
+
+- The `indexnow:check` lines of the adapter carry stable codes (core 0.8, `check --json`): `queue.dispatch`,
+  `queue.connection`, `queue.driver`, `eloquent.enabled`, plus the core's `debounce.store` and `sitemap.installed`.
+  Listed in the core's `docs/check-codes.md`.
+
 ## [0.9.0] — 2026-09-06
 
 ### Changed

@@ -18,9 +18,9 @@ final class EloquentCheck implements CheckInterface
     public function check(CheckReport $report): void
     {
         if ($this->observing) {
-            $report->ok('eloquent: models using IndexNowable (or registered with IndexNowKit::observe()) are submitted automatically after commit');
+            $report->ok('eloquent: models using IndexNowable (or registered with IndexNowKit::observe()) are submitted automatically after commit', 'eloquent.enabled');
         } else {
-            $report->warning('eloquent: model observers are NOT active (eloquent.enabled or enabled is false); use indexnow:submit or IndexNowKit::submit()');
+            $report->warning('eloquent: model observers are NOT active (eloquent.enabled or enabled is false); use indexnow:submit or IndexNowKit::submit()', 'eloquent.enabled');
         }
     }
 }
