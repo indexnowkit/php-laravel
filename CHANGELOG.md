@@ -3,7 +3,11 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
-## [Unreleased]
+## [0.10.0] — 2026-09-06
+
+### Changed
+
+- Requires `indexnowkit/core ^0.8`, `indexnowkit/console ^0.2` and (dev/suggest) `indexnowkit/sitemap ^0.4`. Core 0.8 strips tracking parameters by default (`normalizer.strip_tracking_params`) and makes `Equals` in `params` an error (see the core changelog).
 
 ### Added
 

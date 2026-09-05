@@ -39,12 +39,12 @@
         "illuminate/queue": "^12.0 || ^13.0",
         "illuminate/routing": "^12.0 || ^13.0",
         "illuminate/support": "^12.0 || ^13.0",
-        "indexnowkit/console": "^0.1",
-        "indexnowkit/core": "^0.7",
+        "indexnowkit/console": "^0.2",
+        "indexnowkit/core": "^0.8",
         "psr/log": "^1.1 || ^2.0 || ^3.0"
     },
     "require-dev": {
-        "indexnowkit/sitemap": "^0.3",
+        "indexnowkit/sitemap": "^0.4",
         "indexnowkit/testing": "^0.1",
         "larastan/larastan": "^3.11",
         "orchestra/testbench": "^10.0 || ^11.0",
@@ -54,7 +54,7 @@
         "roave/security-advisories": "dev-latest"
     },
     "suggest": {
-        "indexnowkit/sitemap": "The indexnow:sitemap command (^0.3)",
+        "indexnowkit/sitemap": "The indexnow:sitemap command (^0.4)",
         "laravel/octane": "Supported: the collector is a scoped singleton and is flushed on terminate",
         "nyholm/psr7": "PSR-17 factories when no PSR-18 client is installed (any PSR-18 client works, e.g. guzzlehttp/guzzle ^7 which Laravel ships)"
     },
@@ -87,7 +87,7 @@
             ]
         },
         "branch-alias": {
-            "dev-main": "0.9.x-dev"
+            "dev-main": "0.10.x-dev"
         }
     }
 }
