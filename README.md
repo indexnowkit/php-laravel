@@ -279,6 +279,6 @@ class Post extends Model { use IndexNowable; public function isPublished(): bool
 | JS/TS | @indexnowkit/core, next, prisma (soon) |
 | Python | indexnowkit, indexnowkit-django (soon) |
 
-Design rationale: [docs/spec](https://github.com/indexnowkit/php/tree/main/docs/spec). Changelog: [CHANGELOG.md](CHANGELOG.md).
+Design rationale: [docs/spec](https://github.com/indexnowkit/spec). Changelog: [CHANGELOG.md](CHANGELOG.md).
 
 MIT. IndexNow is a trademark of its owner; this project is independent and not affiliated with Microsoft, Yandex or indexnow.org.
