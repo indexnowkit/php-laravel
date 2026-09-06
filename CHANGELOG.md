@@ -3,6 +3,20 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [0.13.0] — Unreleased
+
+### Changed
+
+- **`Queue\SubmitUrlsJob` re-queues only the rejected URLs** of a partially accepted batch, as a new job on the same
+  connection and queue with the engine's delay; `release()` (which replays the whole payload) is used only when every URL
+  was rejected. Before, a `Retry-After` longer than `debounce.per_url` re-sent the accepted URLs too.
+- **`Queue\QueueDispatcher` pushes one job per `batch.max_urls` URLs**: a bulk import was one job an SQS payload limit
+  rejected, and every URL was lost with one log line.
+- `check` gets `verify.transport`; `config/indexnow.php` gets `verify.time_budget`.
+- `publishes()` is registered in the console only, as Laravel's package conventions have it; `psr/log ^1.1` is gone from
+  the constraint (the core requires `^2 || ^3`).
+- Requires `indexnowkit/core ^0.11`, `indexnowkit/console ^0.4`; tests against `verify ^0.2`, `history ^0.2`, `sitemap ^0.6`.
+
 ## [0.12.0] — 2026-09-06
 
 ### Added

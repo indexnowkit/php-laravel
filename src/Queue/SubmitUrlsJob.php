@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace IndexNowKit\Laravel\Queue;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 use IndexNowKit\Retry\RetryPolicy;
@@ -55,7 +56,7 @@ final class SubmitUrlsJob implements ShouldQueue
         return $delays === [] ? [0] : $delays;
     }
 
-    public function handle(SubmitterInterface $submitter, LoggerInterface $logger): void
+    public function handle(SubmitterInterface $submitter, LoggerInterface $logger, ?BusDispatcher $bus = null): void
     {
         $outcome = WorkerOutcome::of($submitter->submit($this->urls));
         if ($outcome->hasRetryable()) {
@@ -67,6 +68,14 @@ final class SubmitUrlsJob implements ShouldQueue
                 return;
             }
             $logger->info(...$outcome->retryLog($this->id, $delay, $this->attempts()));
+            if ($bus !== null && \count($outcome->retryUrls) < \count($this->urls)) {
+                // Part of the batch went through: only the rest comes back, as its own job — release() would replay the whole payload.
+                $next = new self($outcome->retryUrls, $this->policy, $this->id);
+                $next->onConnection($this->connection)->onQueue($this->queue)->delay($delay);
+                $bus->dispatch($next);
+
+                return;
+            }
             $this->release($delay);
 
             return;

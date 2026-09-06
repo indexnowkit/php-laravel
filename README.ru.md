@@ -172,7 +172,7 @@ php artisan indexnow:check --live   # плюс реальный пробный �
 | `indexnow:submit-model <model> [ids...]` | `--event=` · `--limit=` · `--explain` · `-f, --force` · `--dry-run` · `--json` |
 | `indexnow:explain <model> <id>` | `--event=` — правила, `when`, URL, ключ, дебаунс; ничего не отправляет |
 | `indexnow:sitemap [sitemap]` | `--changed-since="1 day"` · `--allow-foreign-hosts` · `-f, --force` · `--dry-run` · `--json` · `--no-verify` |
-| `indexnow:history` | `--host=` · `--status=ok|failed|skipped|pending` · `--url=` · `--since=2h|3d|2026-09-01` · `--limit=` (по умолчанию 50) · `--json` · `--purge[=days]` |
+| `indexnow:history` | `--host=` · `--status=ok|pending|failed|skipped` · `--url=` · `--since=2h|3d|2026-09-01` · `--limit=` (по умолчанию 50) · `--json` · `--purge[=days]` |
 | `indexnow:status` | `--json` |
 | `indexnow:key:generate` | `-l, --length` · `--alphanumeric` · `--write-env[=FILE]` (по умолчанию `.env`) · `--force` ротация |
 
@@ -272,7 +272,7 @@ PHP 8.2–8.5 (Laravel 13 требует PHP 8.3).
 
 ## Заметки для AI-ассистентов
 
-- Composer-пакет `indexnowkit/laravel` (Laravel 12 | 13, поверх `indexnowkit/core`); команда `sitemap` требует `indexnowkit/sitemap`; предпроверка страниц — `indexnowkit/verify`; `indexnow:history` / `indexnow:status` — `indexnowkit/history` (`history.store: psr16|pdo`). Конфигурация: `config/indexnow.php` и env-переменные `INDEXNOW_*`.
+- Composer-пакет `indexnowkit/laravel` (Laravel 12 | 13, поверх `indexnowkit/core`); команда `indexnow:sitemap` требует `indexnowkit/sitemap`; предпроверка страниц — `indexnowkit/verify`; `indexnow:history` / `indexnow:status` — `indexnowkit/history` (`history.store: psr16|pdo`). Конфигурация: `config/indexnow.php` и env-переменные `INDEXNOW_*`; `php artisan indexnow:key:generate --env-file=.env` записывает новый `INDEXNOW_KEY`; `php artisan indexnow:submit <url>…` отправляет URL вручную, `php artisan indexnow:explain <Model> <id>` объясняет, почему URL есть или нет.
 - Минимальный полный сниппет (все `use` на месте):
 
 ```php

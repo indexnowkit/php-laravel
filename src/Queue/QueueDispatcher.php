@@ -25,24 +25,27 @@ final class QueueDispatcher implements DispatcherInterface
         private readonly int $delay = 0,
     ) {}
 
+    /** One job per `batch.max_urls` URLs: a bulk import of 500 000 rows is many jobs the queue accepts, not one payload SQS rejects. */
     public function dispatch(array $urls): void
     {
-        $id = SubmitUrlsJob::newId();
-        try {
-            $job = new SubmitUrlsJob($urls, $this->config->retryPolicy(), $id);
-            if ($this->connection !== null && $this->connection !== '') {
-                $job->onConnection($this->connection);
+        foreach (array_chunk($urls, max(1, $this->config->batchMaxUrls)) as $chunk) {
+            $id = SubmitUrlsJob::newId();
+            try {
+                $job = new SubmitUrlsJob($chunk, $this->config->retryPolicy(), $id);
+                if ($this->connection !== null && $this->connection !== '') {
+                    $job->onConnection($this->connection);
+                }
+                if ($this->queue !== null && $this->queue !== '') {
+                    $job->onQueue($this->queue);
+                }
+                if ($this->delay > 0) {
+                    $job->delay($this->delay);
+                }
+                $this->bus->dispatch($job);
+                $this->logger->debug('indexnow: {count} URL(s) queued as job {id}', ['count' => \count($chunk), 'id' => $id, 'urls' => $this->config->logSample($chunk)]);
+            } catch (Throwable $e) {
+                $this->logger->error('indexnow: cannot queue {count} URL(s) (job {id}), they are lost: {error}', ['count' => \count($chunk), 'id' => $id, 'error' => $e->getMessage(), 'exception' => $e, 'urls' => $this->config->logSample($chunk)]);
             }
-            if ($this->queue !== null && $this->queue !== '') {
-                $job->onQueue($this->queue);
-            }
-            if ($this->delay > 0) {
-                $job->delay($this->delay);
-            }
-            $this->bus->dispatch($job);
-            $this->logger->debug('indexnow: {count} URL(s) queued as job {id}', ['count' => \count($urls), 'id' => $id, 'urls' => $this->config->logSample($urls)]);
-        } catch (Throwable $e) {
-            $this->logger->error('indexnow: cannot queue {count} URL(s) (job {id}), they are lost: {error}', ['count' => \count($urls), 'id' => $id, 'error' => $e->getMessage(), 'exception' => $e, 'urls' => $this->config->logSample($urls)]);
         }
     }
 }

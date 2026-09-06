@@ -179,6 +179,9 @@ return [
         'max_redirects' => 3,
         // A larger batch (the sitemap command) is sent unverified with one warning.
         'max_batch' => 100,
+        // Seconds the pre-flight of one batch may take in total (a queue job has a visibility timeout); the URLs left when
+        // it runs out are sent unverified with one warning. 0 = no budget.
+        'time_budget' => 60,
         // Seconds robots.txt is kept in the debounce.store cache (0 = per process only).
         'robots_cache_ttl' => 3600,
         // User-Agent of the pre-flight GETs (null = indexnowkit-verify/<version>); allow it in your WAF.

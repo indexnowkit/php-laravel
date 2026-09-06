@@ -195,8 +195,8 @@ final class IndexNowKitServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        $this->publishes([__DIR__ . '/../config/indexnow.php' => $this->app->configPath('indexnow.php')], self::CONFIG_TAG);
         if ($this->app->runningInConsole()) {
+            $this->publishes([__DIR__ . '/../config/indexnow.php' => $this->app->configPath('indexnow.php')], self::CONFIG_TAG);
             $this->registerAbout();
             $this->commands([KeyGenerateCommand::class, CheckCommand::class, ConfigCommand::class, SubmitCommand::class, SubmitModelCommand::class, ExplainCommand::class, ...$this->sitemapPackage()->installed() ? SitemapServices::commands() : [SitemapNotInstalledCommand::class], ...self::historyPackage($this->app)->installed() ? HistoryServices::commands() : [HistoryNotInstalledCommand::class, StatusNotInstalledCommand::class]]);
         }
@@ -340,7 +340,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         ]);
         if ($verify) {
             VerifyServices::register($this->app, self::LOGGER, self::EVENTS, self::FAILURE_CACHE, self::UNVERIFIED_SUBMITTER_FACTORY);
-            $verifyChecks = [VerifyServices::CHECK, VerifyServices::DISPATCH_CHECK, VerifySampleCheck::class];
+            $verifyChecks = [VerifyServices::CHECK, VerifyServices::DISPATCH_CHECK, VerifyServices::TRANSPORT_CHECK, VerifySampleCheck::class];
         } else {
             $this->app->singleton(VerifySampleCheck::class, static function (Container $app): VerifySampleCheck {
                 /** @var array{verify?: array<string, mixed>} $defaults */

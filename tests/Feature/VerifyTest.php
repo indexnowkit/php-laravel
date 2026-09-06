@@ -110,7 +110,7 @@ final class VerifyTest extends LaravelTestCase
         self::assertSame(ExitCode::SUCCESS, $code);
         $decoded = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
         self::assertIsArray($decoded);
-        self::assertSame(['enabled' => true, 'redirect' => 'follow', 'non_canonical' => 'skip', 'origin_error' => 'skip', 'delay' => 0, 'timeout' => 5, 'max_redirects' => 3, 'max_batch' => 100, 'robots_cache_ttl' => 3600, 'user_agent' => 'test-verify/1'], $decoded['verify']);
+        self::assertSame(['enabled' => true, 'redirect' => 'follow', 'non_canonical' => 'skip', 'origin_error' => 'skip', 'delay' => 0, 'timeout' => 5, 'max_redirects' => 3, 'max_batch' => 100, 'time_budget' => 60, 'robots_cache_ttl' => 3600, 'user_agent' => 'test-verify/1'], $decoded['verify']);
         self::assertArrayNotHasKey('verify', $decoded['adapter']);
 
         [, $output] = $this->artisanCall('about', ['--only' => 'indexnow']);

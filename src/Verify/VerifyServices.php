@@ -11,7 +11,6 @@ use IndexNowKit\Adapter\OptionalPackage;
 use IndexNowKit\Adapter\SubmitterFactoryInterface;
 use IndexNowKit\Check\CheckInterface;
 use IndexNowKit\Check\CheckLevel;
-use IndexNowKit\Check\CheckReport;
 use IndexNowKit\Check\StaticCheck;
 use IndexNowKit\Config;
 use IndexNowKit\Http\TransportFactory;
@@ -23,7 +22,9 @@ use IndexNowKit\Laravel\Check\VerifySampleCheck;
 use IndexNowKit\Submission\SubmissionStoreInterface;
 use IndexNowKit\SubmitterInterface;
 use IndexNowKit\Url\UrlNormalizerInterface;
+use IndexNowKit\Verify\Check\DispatchCheck;
 use IndexNowKit\Verify\Check\SampleCheck;
+use IndexNowKit\Verify\Check\TransportCheck;
 use IndexNowKit\Verify\PageSignals;
 use IndexNowKit\Verify\RobotsCache;
 use IndexNowKit\Verify\VerifyConfig;
@@ -46,6 +47,8 @@ final class VerifyServices
     public const CHECK = 'indexnowkit.check.verify';
     /** Container id of the `check` warning with `dispatch: sync` (`verify.dispatch`), bound only then. */
     public const DISPATCH_CHECK = 'indexnowkit.check.verify_dispatch';
+    /** Container id of the `check` line about `http.client` with verify (`Verify\Check\TransportCheck`). */
+    public const TRANSPORT_CHECK = 'indexnowkit.check.verify_transport';
 
     /**
      * The one predicate for `indexnowkit/verify` (safe to call without the package: `::class` on an absent class
@@ -78,7 +81,7 @@ final class VerifyServices
         $app->singleton(self::TRANSPORT, static function (Container $app): TransportInterface {
             $verify = $app->make(VerifyConfig::class);
 
-            return TransportFactory::lazy($verify->transportConfig($app->make(Config::class)), static fn(string $id): mixed => $app->make($id), ['User-Agent' => $verify->userAgent()]);
+            return TransportFactory::lazy($verify->transportConfig($app->make(Config::class)), static fn(string $id): mixed => $app->make($id), ['User-Agent' => $verify->userAgent()], VerifyConfig::BODY_LIMIT);
         });
         $app->singleton(RobotsCache::class, static function (Container $app) use ($logger, $failureCache): RobotsCache {
             $cache = $app->make($failureCache);
@@ -93,20 +96,8 @@ final class VerifyServices
 
             return new StaticCheck(CheckLevel::Ok, $line, self::package(true)->checkCode());
         });
-        $app->singleton(self::DISPATCH_CHECK, static function (Container $app): CheckInterface {
-            $warn = $app->make(VerifyConfig::class)->enabled && $app->make(Config::class)->dispatch === 'sync';
-
-            return new class ($warn) implements CheckInterface {
-                public function __construct(private readonly bool $warn) {}
-
-                public function check(CheckReport $report): void
-                {
-                    if ($this->warn) {
-                        $report->warning('verify: verify.enabled with dispatch: sync fetches your own pages inside the web request; use dispatch: queue', 'verify.dispatch');
-                    }
-                }
-            };
-        });
+        $app->singleton(self::DISPATCH_CHECK, static fn(Container $app): CheckInterface => new DispatchCheck($app->make(VerifyConfig::class)->enabled && $app->make(Config::class)->dispatch === 'sync', 'queue'));
+        $app->singleton(self::TRANSPORT_CHECK, static fn(Container $app): CheckInterface => new TransportCheck($app->make(VerifyConfig::class)->enabled, $app->make(Config::class)->httpClient));
         $app->singleton(VerifySampleCheck::class, static fn(Container $app): VerifySampleCheck => new VerifySampleCheck(
             $app->make(SampleOptions::class),
             static fn(array $urls, array $classes): CheckInterface => new SampleCheck($urls, $classes, $app->make(self::TRANSPORT), $app->make(VerifyConfig::class), $app->make(UrlNormalizerInterface::class), $app->make(KeyProviderInterface::class), $app->make(ModelSampler::class)(...), $app->make(RobotsCache::class)),

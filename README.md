@@ -175,7 +175,7 @@ Run it after every key rotation and after every deployment that touches the conf
 | `indexnow:submit-model <model> [ids...]` | `--event=` · `--limit=` · `--explain` · `-f, --force` · `--dry-run` · `--json` |
 | `indexnow:explain <model> <id>` | `--event=` — rules, `when`, URLs, key, debounce; sends nothing |
 | `indexnow:sitemap [sitemap]` | `--changed-since="1 day"` · `--allow-foreign-hosts` · `-f, --force` · `--dry-run` · `--json` · `--no-verify` |
-| `indexnow:history` | `--host=` · `--status=ok|failed|skipped|pending` · `--url=` · `--since=2h|3d|2026-09-01` · `--limit=` (default 50) · `--json` · `--purge[=days]` |
+| `indexnow:history` | `--host=` · `--status=ok|pending|failed|skipped` · `--url=` · `--since=2h|3d|2026-09-01` · `--limit=` (default 50) · `--json` · `--purge[=days]` |
 | `indexnow:status` | `--json` |
 | `indexnow:key:generate` | `-l, --length` · `--alphanumeric` · `--write-env[=FILE]` (default `.env`) · `--force` rotate |
 
@@ -275,7 +275,7 @@ break is listed under "Changed" in [CHANGELOG.md](CHANGELOG.md) with the migrati
 
 ## Notes for AI assistants
 
-- Composer package `indexnowkit/laravel` (Laravel 12 | 13, on `indexnowkit/core`); the `sitemap` command needs `indexnowkit/sitemap`; pre-flight checks need `indexnowkit/verify`; `indexnow:history` / `indexnow:status` need `indexnowkit/history` (`history.store: psr16|pdo`). Configuration: `config/indexnow.php` and `INDEXNOW_*` env variables.
+- Composer package `indexnowkit/laravel` (Laravel 12 | 13, on `indexnowkit/core`); the `indexnow:sitemap` command needs `indexnowkit/sitemap`; pre-flight checks need `indexnowkit/verify`; `indexnow:history` / `indexnow:status` need `indexnowkit/history` (`history.store: psr16|pdo`). Configuration: `config/indexnow.php` and `INDEXNOW_*` env variables; `php artisan indexnow:key:generate --env-file=.env` writes a fresh `INDEXNOW_KEY`; `php artisan indexnow:submit <url>…` submits URLs by hand, `php artisan indexnow:explain <Model> <id>` shows why a URL is or is not produced.
 - Minimal complete snippet (every `use` included):
 
 ```php
