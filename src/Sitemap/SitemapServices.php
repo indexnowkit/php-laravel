@@ -13,15 +13,16 @@ use IndexNowKit\Http\TransportInterface;
 use IndexNowKit\IndexNowKit;
 use IndexNowKit\Laravel\Console\SitemapCommand;
 use IndexNowKit\Laravel\IndexNowKitServiceProvider;
+use IndexNowKit\Sitemap\Adapter\SitemapServices as Package;
 use IndexNowKit\Sitemap\Check\SitemapSpoolCheck;
 use IndexNowKit\Sitemap\Console\SitemapRunner;
 use IndexNowKit\Sitemap\SitemapConfig;
-use IndexNowKit\Sitemap\SitemapReader;
 use IndexNowKit\Sitemap\SitemapSourceInterface;
 
 /**
- * The sitemap bindings: the only wiring of the package that reads `IndexNowKit\Sitemap\*`, called by the provider
- * when {@see package()} says the package is installed ({@see IndexNowKitServiceProvider::SITEMAP_PACKAGE}). An
+ * The sitemap bindings: the container ids and the Laravel side (the config repository, the artisan command) over the
+ * package's own wiring (`Sitemap\Adapter\SitemapServices`: the reader, the spool check, the runner). Called by the
+ * provider when {@see package()} says the package is installed ({@see IndexNowKitServiceProvider::SITEMAP_PACKAGE}). An
  * application replaces `SitemapSourceInterface` to read from another place or format ([docs/extending.md]).
  */
 final class SitemapServices
@@ -35,7 +36,7 @@ final class SitemapServices
      */
     public static function package(?bool $installed = null): OptionalPackage
     {
-        return new OptionalPackage('indexnowkit/sitemap', SitemapReader::class, 'sitemap', $installed);
+        return Package::package($installed);
     }
 
     /**
@@ -45,7 +46,7 @@ final class SitemapServices
      */
     public static function options(): array
     {
-        return SitemapConfig::OPTIONS;
+        return Package::options();
     }
 
     /**
@@ -62,17 +63,17 @@ final class SitemapServices
     public static function register(Container $app, string $logger): void
     {
         // The validated `sitemap` block; a broken value disables the sitemap command with a critical log line, like the core options.
-        $app->singleton(SitemapConfig::class, static fn(Container $app): SitemapConfig => SitemapConfig::loadOrDisabled(self::block($app), $app->make($logger), 'php artisan indexnow:check'));
-        $app->singleton(SitemapSourceInterface::class, static fn(Container $app): SitemapSourceInterface => SitemapReader::fromConfig($app->make(SitemapConfig::class), $app->make(TransportInterface::class), $app->make($logger)));
-        $app->singleton(SitemapSpoolCheck::class, static fn(Container $app): SitemapSpoolCheck => new SitemapSpoolCheck($app->make(SitemapConfig::class)));
-        $app->singleton(SitemapRunner::class, static fn(Container $app): SitemapRunner => new SitemapRunner(
+        $app->singleton(SitemapConfig::class, static fn(Container $app): SitemapConfig => Package::config(self::block($app), $app->make($logger), 'php artisan indexnow:check'));
+        $app->singleton(SitemapSourceInterface::class, static fn(Container $app): SitemapSourceInterface => Package::reader($app->make(SitemapConfig::class), $app->make(TransportInterface::class), $app->make($logger)));
+        $app->singleton(SitemapSpoolCheck::class, static fn(Container $app): SitemapSpoolCheck => Package::spoolCheck($app->make(SitemapConfig::class)));
+        $app->singleton(SitemapRunner::class, static fn(Container $app): SitemapRunner => Package::runner(
             $app->make(IndexNowKit::class),
             $app->make(SitemapSourceInterface::class),
             $app->make(SubmitterFactoryInterface::class),
-            $app->make(SitemapConfig::class)->url,
+            $app->make(SitemapConfig::class),
             $app->make(ResultFormatterInterface::class),
-            sitemapUrlOption: 'indexnow.sitemap.url',
-            unverifiedSubmitters: $app->make(IndexNowKitServiceProvider::UNVERIFIED_SUBMITTER_FACTORY),
+            'indexnow.sitemap.url',
+            $app->make(IndexNowKitServiceProvider::UNVERIFIED_SUBMITTER_FACTORY),
         ));
     }
 

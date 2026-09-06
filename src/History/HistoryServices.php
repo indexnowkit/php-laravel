@@ -12,16 +12,12 @@ use Illuminate\Contracts\Container\Container;
 use Illuminate\Database\DatabaseManager;
 use IndexNowKit\Adapter\OptionalPackage;
 use IndexNowKit\Check\CheckInterface;
-use IndexNowKit\Client;
 use IndexNowKit\Config;
 use IndexNowKit\Debounce\DebounceStoreFactory;
-use IndexNowKit\History\Check\HistoryCheck;
+use IndexNowKit\History\Adapter\HistoryServices as Package;
 use IndexNowKit\History\Console\HistoryRunner;
 use IndexNowKit\History\Console\StatusRunner;
 use IndexNowKit\History\HistoryConfig;
-use IndexNowKit\History\HistoryStoreInterface;
-use IndexNowKit\History\Pdo\PdoSubmissionStore;
-use IndexNowKit\History\Psr16SubmissionStore;
 use IndexNowKit\Key\KeyProviderInterface;
 use IndexNowKit\Laravel\Console\HistoryCommand;
 use IndexNowKit\Laravel\Console\StatusCommand;
@@ -36,8 +32,10 @@ use ReflectionClass;
 use Throwable;
 
 /**
- * The history bindings: the only wiring of the package that reads `IndexNowKit\History\*`, called by the provider
- * when {@see package()} says the package is installed ({@see IndexNowKitServiceProvider::HISTORY_PACKAGE}). With
+ * The history bindings: the container ids and the Laravel side (the config repository, the cache and database
+ * managers, the queue facts) over the package's own wiring (`History\Adapter\HistoryServices`: the stores, the check,
+ * the runners). Called by the provider when {@see package()} says the package is installed
+ * ({@see IndexNowKitServiceProvider::HISTORY_PACKAGE}). With
  * `history.store` set the `SubmissionStoreInterface` binding is extended: the null store of the provider becomes
  * the package's store (a cache store, or a PDO of a database connection or a DSN), so sync flushes, the queue job,
  * the commands and the verify decorator record into it; a store the application bound itself is left alone.
@@ -53,7 +51,7 @@ final class HistoryServices
      */
     public static function package(?bool $installed = null): OptionalPackage
     {
-        return new OptionalPackage('indexnowkit/history', HistoryConfig::class, 'history', $installed);
+        return Package::package($installed);
     }
 
     /**
@@ -63,7 +61,7 @@ final class HistoryServices
      */
     public static function options(): array
     {
-        return HistoryConfig::OPTIONS;
+        return Package::options();
     }
 
     /**
@@ -80,7 +78,7 @@ final class HistoryServices
      */
     public static function register(Container $app, string $logger, string $failureCache): void
     {
-        $app->singleton(HistoryConfig::class, static fn(Container $app): HistoryConfig => HistoryConfig::loadOrDisabled(self::block($app), $app->make($logger), 'php artisan indexnow:check'));
+        $app->singleton(HistoryConfig::class, static fn(Container $app): HistoryConfig => Package::config(self::block($app), $app->make($logger), 'php artisan indexnow:check'));
         $app->extend(SubmissionStoreInterface::class, static function (SubmissionStoreInterface $inner, Container $app): SubmissionStoreInterface {
             $history = $app->make(HistoryConfig::class);
             if (!$inner instanceof NullSubmissionStore || $history->store === null) {
@@ -91,13 +89,12 @@ final class HistoryServices
         });
         $app->singleton(ForbiddenCounter::class, static function (Container $app) use ($logger, $failureCache): ForbiddenCounter {
             $cache = $app->make($failureCache);
-            $config = $app->make(Config::class);
 
-            return new ForbiddenCounter($cache instanceof CacheInterface ? $cache : null, $config->debounceKeyPrefix, $config->forbiddenEscalation, Client::FAILURE_CACHE_TTL, $app->make($logger));
+            return Package::forbiddenCounter($app->make(Config::class), $cache instanceof CacheInterface ? $cache : null, $app->make($logger));
         });
-        $app->singleton(self::CHECK, static fn(Container $app): CheckInterface => new HistoryCheck($app->make(HistoryConfig::class), $app->make(SubmissionStoreInterface::class)));
-        $app->singleton(HistoryRunner::class, static fn(Container $app): HistoryRunner => new HistoryRunner($app->make(SubmissionStoreInterface::class), $app->make(HistoryConfig::class), $app->make(UrlNormalizerInterface::class)));
-        $app->singleton(StatusRunner::class, static fn(Container $app): StatusRunner => new StatusRunner(
+        $app->singleton(self::CHECK, static fn(Container $app): CheckInterface => Package::check($app->make(HistoryConfig::class), $app->make(SubmissionStoreInterface::class)));
+        $app->singleton(HistoryRunner::class, static fn(Container $app): HistoryRunner => Package::historyRunner($app->make(HistoryConfig::class), $app->make(SubmissionStoreInterface::class), $app->make(UrlNormalizerInterface::class)));
+        $app->singleton(StatusRunner::class, static fn(Container $app): StatusRunner => Package::statusRunner(
             $app->make(Config::class),
             $app->make(KeyProviderInterface::class),
             $app->make(ForbiddenCounter::class),
@@ -116,26 +113,13 @@ final class HistoryServices
     /** The `History` line of `php artisan about`: the store, its size, or why there is none. */
     public static function aboutLine(Container $app): string
     {
-        $history = self::effective($app);
-        if ($history->store === null) {
-            return 'off (history.store)';
-        }
-        $store = $app->make(SubmissionStoreInterface::class);
-        $where = $history->store === HistoryConfig::STORE_PDO ? \sprintf('pdo (%s)', $history->pdoTable) : \sprintf('psr16 (%d records kept)', $history->limit);
-        if (!$store instanceof HistoryStoreInterface) {
-            return $store instanceof NullSubmissionStore ? $where : \sprintf('custom (%s)', $store::class);
-        }
-        try {
-            return \sprintf('%s, %s records', $where, HistoryCheck::number($store->count()));
-        } catch (Throwable $e) {
-            return \sprintf('%s, store failed: %s', $where, $e->getMessage());
-        }
+        return Package::describe(self::effective($app), $app->make(SubmissionStoreInterface::class));
     }
 
     /** A PDO of `history.pdo.dsn`, throwing on every error (the store expects exceptions, not false). */
     public static function pdoFromDsn(string $dsn): PDO
     {
-        return new PDO($dsn, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        return Package::pdoFromDsn($dsn);
     }
 
     /**
@@ -145,23 +129,21 @@ final class HistoryServices
     private static function store(Container $app, HistoryConfig $history): SubmissionStoreInterface
     {
         if ($history->store === HistoryConfig::STORE_PDO) {
-            $pdo = $history->pdoDsn !== null ? self::pdoFromDsn($history->pdoDsn) : $app->make(DatabaseManager::class)->connection($history->pdoService)->getPdo();
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $pdo = $history->pdoDsn !== null ? Package::pdoFromDsn($history->pdoDsn) : $app->make(DatabaseManager::class)->connection($history->pdoService)->getPdo();
 
-            return new PdoSubmissionStore($pdo, $history->pdoTable);
+            return Package::pdoStore($pdo, $history);
         }
         $config = $app->make(Config::class);
 
-        return new Psr16SubmissionStore(self::cache($app, $config), $history->keyPrefix ?? $config->debounceKeyPrefix, $history->limit);
+        return Package::psr16Store(self::cache($app, $config), $history, $config);
     }
 
     /** The cache store of `debounce.store` when it names one, else the application's default store. */
     private static function cache(Container $app, Config $config): CacheRepository
     {
-        $store = $config->debounceStore ?? IndexNowKitServiceProvider::DEFAULT_DEBOUNCE_STORE;
-        $name = \in_array($store, [DebounceStoreFactory::MEMORY, DebounceStoreFactory::NONE, IndexNowKitServiceProvider::DEFAULT_DEBOUNCE_STORE], true) ? null : $store;
+        $name = Package::debounceCacheId($config);
 
-        return $app->make(CacheFactory::class)->store($name);
+        return $app->make(CacheFactory::class)->store($name === IndexNowKitServiceProvider::DEFAULT_DEBOUNCE_STORE ? null : $name);
     }
 
     /** `memory`, `none`, or `<store> (<driver>)` — `cache (redis)`, `redis (redis)`, `cache (array)`. */

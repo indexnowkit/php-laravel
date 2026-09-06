@@ -10,10 +10,7 @@ use Illuminate\Contracts\Foundation\Application;
 use IndexNowKit\Adapter\OptionalPackage;
 use IndexNowKit\Adapter\SubmitterFactoryInterface;
 use IndexNowKit\Check\CheckInterface;
-use IndexNowKit\Check\CheckLevel;
-use IndexNowKit\Check\StaticCheck;
 use IndexNowKit\Config;
-use IndexNowKit\Http\TransportFactory;
 use IndexNowKit\Http\TransportInterface;
 use IndexNowKit\Key\KeyProviderInterface;
 use IndexNowKit\Laravel\Check\ModelSampler;
@@ -22,22 +19,20 @@ use IndexNowKit\Laravel\Check\VerifySampleCheck;
 use IndexNowKit\Submission\SubmissionStoreInterface;
 use IndexNowKit\SubmitterInterface;
 use IndexNowKit\Url\UrlNormalizerInterface;
-use IndexNowKit\Verify\Check\DispatchCheck;
-use IndexNowKit\Verify\Check\SampleCheck;
-use IndexNowKit\Verify\Check\TransportCheck;
-use IndexNowKit\Verify\PageSignals;
+use IndexNowKit\Verify\Adapter\VerifyServices as Package;
 use IndexNowKit\Verify\RobotsCache;
 use IndexNowKit\Verify\VerifyConfig;
-use IndexNowKit\Verify\VerifyingSubmitter;
 use IndexNowKit\Verify\VerifyingSubmitterFactory;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\SimpleCache\CacheInterface;
 
 /**
- * The verify bindings: the only wiring of the package that reads `IndexNowKit\Verify\*`, called by the provider
- * when {@see package()} says the package is installed ({@see IndexNowKitServiceProvider::VERIFY_PACKAGE}). With
- * `verify.enabled: true` the `SubmitterInterface` and `SubmitterFactoryInterface` bindings are extended in place,
- * so `dispatch: sync`, the queue job and every command submit through the pre-flight.
+ * The verify bindings: the container ids and the Laravel side (the config repository, the cache and http.client
+ * bindings, `runningInConsole()`) over the package's own wiring (`Verify\Adapter\VerifyServices`: transport, robots
+ * cache, decorators, check lines). Called by the provider when {@see package()} says the package is installed
+ * ({@see IndexNowKitServiceProvider::VERIFY_PACKAGE}). With `verify.enabled: true` the `SubmitterInterface` and
+ * `SubmitterFactoryInterface` bindings are extended in place, so `dispatch: sync`, the queue job and every command
+ * submit through the pre-flight.
  */
 final class VerifyServices
 {
@@ -56,7 +51,7 @@ final class VerifyServices
      */
     public static function package(?bool $installed = null): OptionalPackage
     {
-        return new OptionalPackage('indexnowkit/verify', PageSignals::class, 'verify', $installed);
+        return Package::package($installed);
     }
 
     /**
@@ -66,7 +61,7 @@ final class VerifyServices
      */
     public static function options(): array
     {
-        return VerifyConfig::OPTIONS;
+        return Package::options();
     }
 
     /**
@@ -77,30 +72,19 @@ final class VerifyServices
      */
     public static function register(Container $app, string $logger, string $events, string $failureCache, string $unverified): void
     {
-        $app->singleton(VerifyConfig::class, static fn(Container $app): VerifyConfig => VerifyConfig::loadOrDisabled(self::block($app), $app->make($logger), 'php artisan indexnow:check'));
-        $app->singleton(self::TRANSPORT, static function (Container $app): TransportInterface {
-            $verify = $app->make(VerifyConfig::class);
-
-            return TransportFactory::lazy($verify->transportConfig($app->make(Config::class)), static fn(string $id): mixed => $app->make($id), ['User-Agent' => $verify->userAgent()], VerifyConfig::BODY_LIMIT);
-        });
+        $app->singleton(VerifyConfig::class, static fn(Container $app): VerifyConfig => Package::config(self::block($app), $app->make($logger), 'php artisan indexnow:check'));
+        $app->singleton(self::TRANSPORT, static fn(Container $app): TransportInterface => Package::transport($app->make(VerifyConfig::class), $app->make(Config::class), static fn(string $id): mixed => $app->make($id)));
         $app->singleton(RobotsCache::class, static function (Container $app) use ($logger, $failureCache): RobotsCache {
             $cache = $app->make($failureCache);
 
-            return new RobotsCache($app->make(self::TRANSPORT), $cache instanceof CacheInterface ? $cache : null, $app->make(Config::class)->debounceKeyPrefix, $app->make(VerifyConfig::class)->robotsCacheTtl, $app->make($logger));
+            return Package::robots($app->make(VerifyConfig::class), $app->make(self::TRANSPORT), $cache instanceof CacheInterface ? $cache : null, $app->make(Config::class), $app->make($logger));
         });
-        $app->singleton(self::CHECK, static function (Container $app): CheckInterface {
-            $verify = $app->make(VerifyConfig::class);
-            $line = $verify->enabled
-                ? \sprintf('verify: enabled (redirect: %s, non_canonical: %s, origin_error: %s)', $verify->redirect->value, $verify->nonCanonical->value, $verify->originError->value)
-                : 'verify: installed, disabled (verify.enabled: false)';
-
-            return new StaticCheck(CheckLevel::Ok, $line, self::package(true)->checkCode());
-        });
-        $app->singleton(self::DISPATCH_CHECK, static fn(Container $app): CheckInterface => new DispatchCheck($app->make(VerifyConfig::class)->enabled && $app->make(Config::class)->dispatch === 'sync', 'queue'));
-        $app->singleton(self::TRANSPORT_CHECK, static fn(Container $app): CheckInterface => new TransportCheck($app->make(VerifyConfig::class)->enabled, $app->make(Config::class)->httpClient));
+        $app->singleton(self::CHECK, static fn(Container $app): CheckInterface => Package::installedCheck($app->make(VerifyConfig::class)));
+        $app->singleton(self::DISPATCH_CHECK, static fn(Container $app): CheckInterface => Package::dispatchCheck($app->make(VerifyConfig::class), $app->make(Config::class), 'queue'));
+        $app->singleton(self::TRANSPORT_CHECK, static fn(Container $app): CheckInterface => Package::transportCheck($app->make(VerifyConfig::class), $app->make(Config::class)));
         $app->singleton(VerifySampleCheck::class, static fn(Container $app): VerifySampleCheck => new VerifySampleCheck(
             $app->make(SampleOptions::class),
-            static fn(array $urls, array $classes): CheckInterface => new SampleCheck($urls, $classes, $app->make(self::TRANSPORT), $app->make(VerifyConfig::class), $app->make(UrlNormalizerInterface::class), $app->make(KeyProviderInterface::class), $app->make(ModelSampler::class)(...), $app->make(RobotsCache::class)),
+            Package::sampleCheck($app->make(self::TRANSPORT), $app->make(VerifyConfig::class), $app->make(UrlNormalizerInterface::class), $app->make(KeyProviderInterface::class), $app->make(ModelSampler::class)(...), $app->make(RobotsCache::class)),
         ));
 
         $psr14 = static function (Container $app) use ($events): ?EventDispatcherInterface {
@@ -114,14 +98,14 @@ final class VerifyServices
             }
             $inWebRequest = $app->make(Config::class)->dispatch === 'sync' && !$app->make(Application::class)->runningInConsole();
 
-            return new VerifyingSubmitter($inner, $app->make(self::TRANSPORT), $app->make(VerifyConfig::class), $app->make(KeyProviderInterface::class), $app->make(UrlNormalizerInterface::class), $app->make($logger), $psr14($app), $app->make(SubmissionStoreInterface::class), $app->make(RobotsCache::class), null, $inWebRequest);
+            return Package::submitter($inner, $app->make(VerifyConfig::class), $app->make(self::TRANSPORT), $app->make(KeyProviderInterface::class), $app->make(UrlNormalizerInterface::class), $app->make($logger), $psr14($app), $app->make(SubmissionStoreInterface::class), $app->make(RobotsCache::class), $inWebRequest);
         });
         $app->extend(SubmitterFactoryInterface::class, static function (SubmitterFactoryInterface $inner, Container $app) use ($logger, $psr14): SubmitterFactoryInterface {
             if (!$app->make(VerifyConfig::class)->enabled) {
                 return $inner;
             }
 
-            return new VerifyingSubmitterFactory($inner, $app->make(self::TRANSPORT), $app->make(VerifyConfig::class), $app->make(KeyProviderInterface::class), $app->make(UrlNormalizerInterface::class), $app->make($logger), $psr14($app), $app->make(SubmissionStoreInterface::class), $app->make(RobotsCache::class));
+            return Package::submitterFactory($inner, $app->make(VerifyConfig::class), $app->make(self::TRANSPORT), $app->make(KeyProviderInterface::class), $app->make(UrlNormalizerInterface::class), $app->make($logger), $psr14($app), $app->make(SubmissionStoreInterface::class), $app->make(RobotsCache::class));
         });
         $app->singleton($unverified, static fn(Container $app): SubmitterFactoryInterface => $app->make(SubmitterFactoryInterface::class) instanceof VerifyingSubmitterFactory ? self::plainFactory($app) : $app->make(SubmitterFactoryInterface::class));
     }

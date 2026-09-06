@@ -44,10 +44,10 @@
         "psr/log": "^2.0 || ^3.0"
     },
     "require-dev": {
-        "indexnowkit/history": "^0.2",
-        "indexnowkit/sitemap": "^0.6",
+        "indexnowkit/history": "^0.3",
+        "indexnowkit/sitemap": "^0.7",
         "indexnowkit/testing": "^0.3",
-        "indexnowkit/verify": "^0.2",
+        "indexnowkit/verify": "^0.3",
         "larastan/larastan": "^3.11",
         "orchestra/testbench": "^10.0 || ^11.0",
         "phpstan/phpstan": "^2.2.13",
@@ -55,10 +55,15 @@
         "phpunit/phpunit": "^11.5",
         "roave/security-advisories": "dev-latest"
     },
+    "conflict": {
+        "indexnowkit/history": "<0.3",
+        "indexnowkit/sitemap": "<0.7",
+        "indexnowkit/verify": "<0.3"
+    },
     "suggest": {
-        "indexnowkit/sitemap": "The indexnow:sitemap command (^0.6)",
-        "indexnowkit/verify": "Pre-flight GET of every URL before submission — noindex, robots.txt, canonical, redirects (^0.2; verify.enabled: true)",
-        "indexnowkit/history": "Submission history in a cache store or a database table, the indexnow:history and indexnow:status commands (^0.2; history.store: psr16|pdo)",
+        "indexnowkit/sitemap": "The indexnow:sitemap command (^0.7)",
+        "indexnowkit/verify": "Pre-flight GET of every URL before submission — noindex, robots.txt, canonical, redirects (^0.3; verify.enabled: true)",
+        "indexnowkit/history": "Submission history in a cache store or a database table, the indexnow:history and indexnow:status commands (^0.3; history.store: psr16|pdo)",
         "laravel/octane": "Supported: the collector is a scoped singleton and is flushed on terminate",
         "nyholm/psr7": "PSR-17 factories when no PSR-18 client is installed (any PSR-18 client works, e.g. guzzlehttp/guzzle ^7 which Laravel ships)"
     },
@@ -92,7 +97,7 @@
             ]
         },
         "branch-alias": {
-            "dev-main": "0.13.x-dev"
+            "dev-main": "0.14.x-dev"
         }
     }
 }
