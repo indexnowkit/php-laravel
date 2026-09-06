@@ -140,14 +140,19 @@ final class HistoryTest extends LaravelTestCase
      */
     public static function assertStatusFollowsTheSchema(array $status): void
     {
-        $schema = json_decode((string) file_get_contents(\dirname(__DIR__, 3) . '/history/docs/status.schema.json'), true, flags: JSON_THROW_ON_ERROR);
-        self::assertIsArray($schema);
-        foreach ($schema['required'] as $key) {
+        // The `required` members of the schema, copied: the history package is not a sibling directory in the split repository.
+        $required = [
+            '' => ['enabled', 'dry_run', 'environment', 'dispatch', 'debounce', 'engines', 'forbidden_escalation', 'hosts', 'history', 'core'],
+            'dispatch' => ['mode', 'adapter'],
+            'debounce' => ['per_url', 'store'],
+            'history' => ['store', 'records', 'last_success', 'error'],
+        ];
+        foreach ($required[''] as $key) {
             self::assertArrayHasKey($key, $status);
         }
         foreach (['dispatch', 'debounce', 'history'] as $section) {
             self::assertIsArray($status[$section]);
-            foreach ($schema['properties'][$section]['required'] as $key) {
+            foreach ($required[$section] as $key) {
                 self::assertArrayHasKey($key, $status[$section]);
             }
         }
