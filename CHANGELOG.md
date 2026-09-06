@@ -3,6 +3,19 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [0.12.0] — Unreleased
+
+### Added
+
+- **`IndexNowKit\Attribute\ParamExtractor` binding**: `new ParamExtractor(new EloquentSubjectReader())`, shared by the resolver,
+  the change handler, the facade and `indexnow:explain`. Extend it for objects neither Eloquent nor the DSL can see into:
+  `$this->app->extend(ParamExtractor::class, fn(ParamExtractor $e) => $e->with(new CmsFieldReader()))`.
+
+### Changed
+
+- Requires `indexnowkit/core ^0.10`; the provider no longer calls the removed static `ParamExtractor::registerReader()` (the
+  reader is in the binding instead — the same accessors resolve the same way).
+
 ## [0.11.0] — 2026-09-06
 
 ### Added

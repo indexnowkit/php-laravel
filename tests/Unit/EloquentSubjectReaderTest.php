@@ -46,14 +46,11 @@ final class ReaderModel extends Model
 
 final class EloquentSubjectReaderTest extends TestCase
 {
+    private ParamExtractor $extractor;
+
     protected function setUp(): void
     {
-        ParamExtractor::registerReader(new EloquentSubjectReader());
-    }
-
-    protected function tearDown(): void
-    {
-        ParamExtractor::unregisterReader(EloquentSubjectReader::class);
+        $this->extractor = new ParamExtractor(new EloquentSubjectReader()); // what the provider binds as ParamExtractor::class
     }
 
     #[TestDox('attributes, casts and accessors are read through getAttribute(); a method with the same name as an attribute does not shadow it')]
@@ -65,11 +62,11 @@ final class EloquentSubjectReaderTest extends TestCase
         self::assertTrue($reader->supports($model));
         self::assertFalse($reader->supports(new stdClass()));
         self::assertTrue($reader->has($model, 'slug'));
-        self::assertSame('hello', ParamExtractor::read($model, 'slug'));
-        self::assertTrue(ParamExtractor::read($model, 'published'), 'cast applied, and the attribute wins over isPublished()');
-        self::assertSame('HELLO', ParamExtractor::read($model, 'shout'), 'accessor');
-        self::assertFalse(ParamExtractor::read($model, 'isPublished'), 'a method not backed by an attribute goes to the DSL');
-        self::assertSame('plain method', ParamExtractor::read($model, 'untyped'));
+        self::assertSame('hello', $this->extractor->read($model, 'slug'));
+        self::assertTrue($this->extractor->read($model, 'published'), 'cast applied, and the attribute wins over isPublished()');
+        self::assertSame('HELLO', $this->extractor->read($model, 'shout'), 'accessor');
+        self::assertFalse($this->extractor->read($model, 'isPublished'), 'a method not backed by an attribute goes to the DSL');
+        self::assertSame('plain method', $this->extractor->read($model, 'untyped'));
     }
 
     #[TestDox('a relation method with a declared Relation return type is read as the related model, not the Relation object')]
@@ -79,14 +76,14 @@ final class EloquentSubjectReaderTest extends TestCase
         $model->setRelation('parent', new ReaderModel(['slug' => 'parent']));
 
         self::assertTrue((new EloquentSubjectReader())->has($model, 'parent'));
-        self::assertSame('parent', ParamExtractor::read($model, 'parent.slug'));
+        self::assertSame('parent', $this->extractor->read($model, 'parent.slug'));
     }
 
     #[TestDox('an unknown attribute is a ConfigurationException, not null')]
     public function testUnknown(): void
     {
         $this->expectException(ConfigurationException::class);
-        ParamExtractor::read(new ReaderModel(['slug' => 'x']), 'missingProperty');
+        $this->extractor->read(new ReaderModel(['slug' => 'x']), 'missingProperty');
     }
 
     #[TestDox('a model in a route parameter stays an object (route model binding), although Eloquent models are Stringable')]
@@ -94,7 +91,7 @@ final class EloquentSubjectReaderTest extends TestCase
     {
         $model = new ReaderModel(['slug' => 'x']);
         $model->setRelation('parent', $parent = new ReaderModel(['slug' => 'p']));
-        $params = ParamExtractor::extract($model, ['post' => 'self', 'parent' => 'parent', 'slug' => 'slug']);
+        $params = $this->extractor->extract($model, ['post' => 'self', 'parent' => 'parent', 'slug' => 'slug']);
 
         self::assertSame($model, $params['post']);
         self::assertSame($parent, $params['parent']);

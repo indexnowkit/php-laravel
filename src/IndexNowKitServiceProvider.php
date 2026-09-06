@@ -159,7 +159,6 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/indexnow.php', 'indexnow');
-        ParamExtractor::registerReader(new EloquentSubjectReader());
         if (!$this->app->bound(self::SITEMAP_PACKAGE)) {
             $this->app->instance(self::SITEMAP_PACKAGE, SitemapServices::package());
         }
@@ -253,6 +252,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             resolver: $app->make(GuardedUrlResolver::class),
             logger: $app->make(self::LOGGER),
             transport: $app->make(TransportInterface::class),
+            extractor: $app->make(ParamExtractor::class),
         ));
         $this->app->singleton(ObjectChangeHandler::class, static fn(Container $app): ObjectChangeHandler => $app->make(IndexNowKit::class)->changes());
     }
@@ -260,6 +260,9 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     private function registerUrls(): void
     {
         $this->app->singleton(RuleRegistry::class, static fn(): RuleRegistry => new RuleRegistry(new AttributeReader()));
+        // How `params` and `when` are read off models: attributes, casts, accessors and relations through Eloquent, the rest
+        // through the core DSL. Bind your own (`->with(new MyReader())`) for objects neither can see into.
+        $this->app->singleton(ParamExtractor::class, static fn(): ParamExtractor => new ParamExtractor(new EloquentSubjectReader()));
         $this->app->alias(RuleRegistry::class, AttributeReaderInterface::class);
         $this->app->singleton(LaravelRouteUrlResolver::class, static function (Container $app): LaravelRouteUrlResolver {
             $router = self::raw($app)['router'] ?? [];
@@ -288,7 +291,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             },
             hint: 'a container binding',
         ));
-        $this->app->singleton(UrlResolverInterface::class, static fn(Container $app): UrlResolverInterface => AttributeUrlResolver::fromConfig($app->make(Config::class), $app->make(AttributeReaderInterface::class), $app->make(RouteUrlResolverInterface::class), $app->make(ResolverLocatorInterface::class), $app->make(self::LOGGER)));
+        $this->app->singleton(UrlResolverInterface::class, static fn(Container $app): UrlResolverInterface => AttributeUrlResolver::fromConfig($app->make(Config::class), $app->make(AttributeReaderInterface::class), $app->make(RouteUrlResolverInterface::class), $app->make(ResolverLocatorInterface::class), $app->make(self::LOGGER), $app->make(ParamExtractor::class)));
         $this->app->singleton(GuardedUrlResolver::class, static fn(Container $app): GuardedUrlResolver => new GuardedUrlResolver($app->make(UrlResolverInterface::class), $app->make(AttributeReaderInterface::class), $app->make(self::LOGGER)));
     }
 

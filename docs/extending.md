@@ -90,10 +90,16 @@ full effective configuration.
 
 ## Reading model attributes
 
-`#[IndexNow]` accessors on Eloquent models go through `Eloquent\EloquentSubjectReader`, registered with the core's
-`ParamExtractor::registerReader()`. It claims attributes, casts, accessors and relations (methods with a declared
-`Relation` return type, or already loaded); anything else falls to the core DSL (methods, properties). An accessor
-that matches nothing is a `ConfigurationException` logged at `error`, not a silent `null`.
+`#[IndexNow]` accessors on Eloquent models go through `Eloquent\EloquentSubjectReader`, the reader of the
+`IndexNowKit\Attribute\ParamExtractor` the provider binds (`ParamExtractor::class`, shared by the resolver, the change handler
+and `indexnow:explain`). It claims attributes, casts, accessors and relations (methods with a declared `Relation` return
+type, or already loaded); anything else falls to the core DSL (methods, properties). An accessor that matches nothing is
+a `ConfigurationException` logged at `error`, not a silent `null`. Objects neither can see into (a CMS record behind
+`get_field()`) get a reader of their own:
+
+```php
+$this->app->extend(ParamExtractor::class, fn(ParamExtractor $extractor) => $extractor->with(new CmsFieldReader()));
+```
 
 ## What is the core's
 
