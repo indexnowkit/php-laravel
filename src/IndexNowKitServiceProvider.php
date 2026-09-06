@@ -291,7 +291,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             },
             hint: 'a container binding',
         ));
-        $this->app->singleton(UrlResolverInterface::class, static fn(Container $app): UrlResolverInterface => AttributeUrlResolver::fromConfig($app->make(Config::class), $app->make(AttributeReaderInterface::class), $app->make(RouteUrlResolverInterface::class), $app->make(ResolverLocatorInterface::class), $app->make(self::LOGGER), $app->make(ParamExtractor::class)));
+        $this->app->singleton(UrlResolverInterface::class, static fn(Container $app): UrlResolverInterface => AttributeUrlResolver::fromConfig($app->make(Config::class), $app->make(AttributeReaderInterface::class), $app->make(ParamExtractor::class), $app->make(RouteUrlResolverInterface::class), $app->make(ResolverLocatorInterface::class), $app->make(self::LOGGER)));
         $this->app->singleton(GuardedUrlResolver::class, static fn(Container $app): GuardedUrlResolver => new GuardedUrlResolver($app->make(UrlResolverInterface::class), $app->make(AttributeReaderInterface::class), $app->make(self::LOGGER)));
     }
 

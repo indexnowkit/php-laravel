@@ -3,6 +3,14 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [0.13.1] — Unreleased
+
+### Changed
+
+- `IndexNowManager::submitModels()` delegates to `IndexNowKit::submitEntities()`; the `UrlResolverInterface` binding passes
+  the `ParamExtractor` binding as the third argument of `AttributeUrlResolver::fromConfig()` (core 0.12.0).
+- Requires `indexnowkit/core ^0.12`.
+
 ## [0.13.0] — 2026-09-07
 
 ### Changed

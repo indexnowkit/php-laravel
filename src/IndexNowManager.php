@@ -89,7 +89,7 @@ final class IndexNowManager
      */
     public function submitModels(iterable $models, Event $event = Event::Updated): array
     {
-        return $this->kit->submitAll($models, $event);
+        return $this->kit->submitEntities($models, $event);
     }
 
     /**

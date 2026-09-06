@@ -288,7 +288,7 @@ class Post extends Model { use IndexNowable; public function isPublished(): bool
 - Проверка: `php artisan indexnow:check` (exit 1 при любой ошибке; `--strict` падает и на предупреждениях, `--json` для машин), `php artisan indexnow:config --json` (эффективная конфигурация с маскированными ключами: вставьте её в баг-репорт), `php artisan indexnow:explain 'App\\Models\\Post' 1` (почему URL был или не был получен), `php artisan indexnow:submit-model 'App\\Models\\Post' 1 --dry-run`.
 - Ловушки:
   - `dispatch: auto` есть в Symfony (`auto` | `messenger` | `sync` | `none`) и Yii2 (`auto` | `queue` | `sync` | `none`), в Laravel **нет** (`queue` | `sync` | `none`).
-  - Локали: `router.locales` в Laravel, `router.languages` в Yii2, `framework.enabled_locales` в Symfony; `locales: 'all'` у правила берёт этот список.
+  - Локали: `router.locales` в Laravel и Yii2, `framework.enabled_locales` в Symfony; `locales: 'all'` у правила берёт этот список.
   - `url:` — имя аксессора (метод или свойство), который возвращает URL; `urls:` — список литеральных URL. Литерал в `url:` не ставить.
   - Строка в `when:` — аксессор, читаемый как truthy (`published`, `isPublished`). Строка статуса требует `Equals`: `when: new Equals('status', 'published')` (`IndexNowKit\Attribute\Param\Equals`).
   - Ручная отправка: `submitEntity()` в Symfony, `submitModel()` в Laravel, `submitRecord()` в Yii2; команды — `indexnow:submit-entity`, `indexnow:submit-model`, `indexnow/submit-record`. Массовые запросы (`update()`, `DB::table()`, `updateAll()`) хуков не вызывают — отправляйте ими после.
