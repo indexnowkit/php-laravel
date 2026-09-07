@@ -3,7 +3,7 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
-## [0.15.0] — Unreleased
+## [0.15.0] — 2026-09-08
 
 
 The test suite of this package stays on PHPUnit `^11.5`: `laravel/framework` 12/13 registers its error handler in a way
