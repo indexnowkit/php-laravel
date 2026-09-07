@@ -31,12 +31,13 @@ final class SitemapServices
     public const SPOOL_CHECK = SitemapSpoolCheck::class;
 
     /**
-     * The one predicate for `indexnowkit/sitemap` (safe to call without the package: `::class` on an absent class
-     * is a string); null = detect, false = wire as if the package were absent (tests).
+     * The one predicate for `indexnowkit/sitemap`: the core's `OptionalPackage::sitemap()`, so it answers without the
+     * package (the package's own `SitemapServices` cannot be loaded then); null = detect, false = wire as if the
+     * package were absent (tests).
      */
     public static function package(?bool $installed = null): OptionalPackage
     {
-        return Package::package($installed);
+        return OptionalPackage::sitemap($installed);
     }
 
     /**

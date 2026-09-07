@@ -46,12 +46,13 @@ final class HistoryServices
     public const CHECK = 'indexnowkit.check.history';
 
     /**
-     * The one predicate for `indexnowkit/history` (safe to call without the package: `::class` on an absent class
-     * is a string); null = detect, false = wire as if the package were absent (tests).
+     * The one predicate for `indexnowkit/history`: the core's `OptionalPackage::history()`, so it answers without the
+     * package (the package's own `HistoryServices` cannot be loaded then); null = detect, false = wire as if the
+     * package were absent (tests).
      */
     public static function package(?bool $installed = null): OptionalPackage
     {
-        return Package::package($installed);
+        return OptionalPackage::history($installed);
     }
 
     /**

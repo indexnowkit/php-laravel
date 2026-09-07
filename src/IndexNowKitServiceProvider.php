@@ -160,13 +160,13 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/indexnow.php', 'indexnow');
         if (!$this->app->bound(self::SITEMAP_PACKAGE)) {
-            $this->app->instance(self::SITEMAP_PACKAGE, SitemapServices::package());
+            $this->app->instance(self::SITEMAP_PACKAGE, OptionalPackage::sitemap());
         }
         if (!$this->app->bound(self::VERIFY_PACKAGE)) {
-            $this->app->instance(self::VERIFY_PACKAGE, VerifyServices::package());
+            $this->app->instance(self::VERIFY_PACKAGE, OptionalPackage::verify());
         }
         if (!$this->app->bound(self::HISTORY_PACKAGE)) {
-            $this->app->instance(self::HISTORY_PACKAGE, HistoryServices::package());
+            $this->app->instance(self::HISTORY_PACKAGE, OptionalPackage::history());
         }
 
         $this->app->singleton(self::LOGGER, static function (Container $app): LoggerInterface {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace IndexNowKit\Laravel\Config;
 
 use IndexNowKit\Adapter\ConfigFactory as CoreConfigFactory;
+use IndexNowKit\Adapter\OptionalPackage;
 use IndexNowKit\Config;
 use IndexNowKit\Exception\ConfigurationException;
 use IndexNowKit\Laravel\History\HistoryServices;
@@ -41,16 +42,19 @@ final class ConfigFactory
      * configuration written for the package); with it, its keys are owned and typos inside it are warned about.
      * The same for indexnowkit/verify and the `verify` block, indexnowkit/history and the `history` block.
      *
-     * @param bool|null $sitemapInstalled null = detect ({@see SitemapServices::package()}); the provider passes the
-     *                                    answer of the container's `OptionalPackage`, tests pass false
-     * @param bool|null $verifyInstalled  the same for `indexnowkit/verify` ({@see VerifyServices::package()})
-     * @param bool|null $historyInstalled the same for `indexnowkit/history` ({@see HistoryServices::package()})
+     * The predicates are the core's `OptionalPackage::sitemap()` / `verify()` / `history()`: they answer without the
+     * package, where a class of the package (`SitemapServices::options()` and the like) is loaded only behind them.
+     *
+     * @param bool|null $sitemapInstalled null = detect; the provider passes the answer of the container's
+     *                                    `OptionalPackage`, tests pass false
+     * @param bool|null $verifyInstalled  the same for `indexnowkit/verify`
+     * @param bool|null $historyInstalled the same for `indexnowkit/history`
      */
     public static function factory(?bool $sitemapInstalled = null, ?bool $verifyInstalled = null, ?bool $historyInstalled = null): CoreConfigFactory
     {
-        $sitemap = $sitemapInstalled ?? SitemapServices::package()->installed();
-        $verify = $verifyInstalled ?? VerifyServices::package()->installed();
-        $history = $historyInstalled ?? HistoryServices::package()->installed();
+        $sitemap = OptionalPackage::sitemap($sitemapInstalled)->installed();
+        $verify = OptionalPackage::verify($verifyInstalled)->installed();
+        $history = OptionalPackage::history($historyInstalled)->installed();
 
         return new CoreConfigFactory(
             ownedOptions: [...self::LARAVEL_OPTIONS, ...$sitemap ? SitemapServices::options() : [], ...$verify ? VerifyServices::options() : [], ...$history ? HistoryServices::options() : []],

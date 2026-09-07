@@ -46,12 +46,13 @@ final class VerifyServices
     public const TRANSPORT_CHECK = 'indexnowkit.check.verify_transport';
 
     /**
-     * The one predicate for `indexnowkit/verify` (safe to call without the package: `::class` on an absent class
-     * is a string); null = detect, false = wire as if the package were absent (tests).
+     * The one predicate for `indexnowkit/verify`: the core's `OptionalPackage::verify()`, so it answers without the
+     * package (the package's own `VerifyServices` cannot be loaded then); null = detect, false = wire as if the
+     * package were absent (tests).
      */
     public static function package(?bool $installed = null): OptionalPackage
     {
-        return Package::package($installed);
+        return OptionalPackage::verify($installed);
     }
 
     /**
