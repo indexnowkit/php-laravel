@@ -56,7 +56,8 @@ of audit 0.13 W2 does not apply here until the framework does.
   `History\HistoryServices::package()` delegate there too, so `overrideApplicationBindings()` in tests is unchanged.
   Same texts, same container ids. A new CI job removes the three packages and boots the application with detection
   (`OptionalPackagesDetectionTest`).
-- Requires `indexnowkit/core ^0.13`.
+- Requires `indexnowkit/core ^0.13`, `indexnowkit/console ^0.5` and, when installed, `indexnowkit/history ^0.4` (the
+  version cascade of wave L, spec 18: the artisan commands keep parsing over the runners, nothing changes here).
 
 ## [0.14.0] — 2026-09-07
 
