@@ -3,6 +3,20 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
+## [0.14.1] — Unreleased
+
+### Fixed
+
+- **Fixed: the package was a fatal without `indexnowkit/sitemap`, `indexnowkit/verify` or `indexnowkit/history`**
+  (`Class "IndexNowKit\Sitemap\Adapter\SitemapServices" not found` when the provider registered or the config was
+  built): `Config\ConfigFactory::factory()` and the provider asked the packages' `*Services::package()` whether the
+  package is installed, and those classes live in the packages. They now ask the core's `Adapter\OptionalPackage::sitemap()`
+  / `verify()` / `history()` (core 0.13.0); `Sitemap\SitemapServices::package()`, `Verify\VerifyServices::package()` and
+  `History\HistoryServices::package()` delegate there too, so `overrideApplicationBindings()` in tests is unchanged.
+  Same texts, same container ids. A new CI job removes the three packages and boots the application with detection
+  (`OptionalPackagesDetectionTest`).
+- Requires `indexnowkit/core ^0.13`.
+
 ## [0.14.0] — 2026-09-07
 
 ### Changed
