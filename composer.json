@@ -45,7 +45,7 @@
     },
     "require-dev": {
         "indexnowkit/history": "^0.4",
-        "indexnowkit/sitemap": "^0.8",
+        "indexnowkit/sitemap": "^0.8 || ^0.9",
         "indexnowkit/testing": "^0.3",
         "indexnowkit/verify": "^0.4",
         "larastan/larastan": "^3.11",
@@ -61,7 +61,7 @@
         "indexnowkit/verify": "<0.4"
     },
     "suggest": {
-        "indexnowkit/sitemap": "The indexnow:sitemap command (^0.8)",
+        "indexnowkit/sitemap": "The indexnow:sitemap command (^0.8 || ^0.9)",
         "indexnowkit/verify": "Pre-flight GET of every URL before submission — noindex, robots.txt, canonical, redirects (^0.4; verify.enabled: true)",
         "indexnowkit/history": "Submission history in a cache store or a database table, the indexnow:history and indexnow:status commands (^0.4; history.store: psr16|pdo)",
         "laravel/octane": "Supported: the collector is a scoped singleton and is flushed on terminate",
