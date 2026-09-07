@@ -20,6 +20,7 @@ use stdClass;
 final class ReaderModel extends Model
 {
     protected $guarded = [];
+    /** @var array<string, string> */
     protected $casts = ['published' => 'bool'];
 
     public function isPublished(): bool
@@ -33,6 +34,7 @@ final class ReaderModel extends Model
         return $this->belongsTo(self::class);
     }
 
+    /** @return string intentionally no native return type: the extractor must not require reflection type info to call it */
     public function untyped()
     {
         return 'plain method';

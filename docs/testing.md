@@ -34,6 +34,12 @@ Every entry of `$transport->posts` is `['url' => ..., 'json' => ..., 'headers' =
 on `host`, `key`, `keyLocation` and `urlList` directly. `FakeTransport::onGet($url, $response)` stubs key file
 fetches for `indexnow:check`; `willRespond(new Response(429, '', 30))` queues engine answers.
 
+## Time
+
+`$this->app->instance(ClockInterface::class, $clock = new FrozenClock('2026-09-07 08:30:00'))` fixes the time the
+throttle, the debounce window and the submission records of `indexnowkit/history` read. `$clock->advance(601)` walks
+past `debounce.per_url` without sleeping.
+
 ## Without HTTP at all
 
 `IndexNowKit::urlsFor($post)` and `IndexNowKit::explain($post)` resolve the rules of one model without sending;

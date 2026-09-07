@@ -172,5 +172,6 @@ Needs `indexnowkit/history` (`composer require indexnowkit/history`); without th
 
 `php artisan indexnow:check` validates the configuration (exact error on failure), fetches every key file over HTTP,
 and prints the Laravel wiring: the queue connection `SubmitUrlsJob` goes to (or that `sync` retries nothing), whether
-the debounce cache store is usable, where sitemap documents are spooled, and whether observers are active. `--live`
-adds a real probe request per engine.
+the debounce cache store is usable, where sitemap documents are spooled, whether observers are active, and the
+locales `locales: 'all'` expands to (`router.locales`; a rule asking for every locale with an empty list is one
+warning). `--live` adds a real probe request per engine.

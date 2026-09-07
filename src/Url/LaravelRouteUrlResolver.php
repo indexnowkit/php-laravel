@@ -13,6 +13,8 @@ use IndexNowKit\Config;
 use IndexNowKit\Exception\ConfigurationException;
 use IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface;
 use IndexNowKit\Url\RouteUrlResolverInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * Generates absolute URLs through the Laravel router (`route()`), including route model binding for
@@ -25,6 +27,9 @@ use IndexNowKit\Url\RouteUrlResolverInterface;
  */
 final class LaravelRouteUrlResolver implements RouteUrlResolverInterface, RouteBindingFieldsInterface
 {
+    /** `locales: 'all'` met an empty `router.locales`: warned about once, not once per model. */
+    private bool $warnedAboutLocales = false;
+
     /**
      * @param list<string> $locales         locales of `locales: 'all'` (`router.locales`)
      * @param string       $localeParameter route parameter carrying the locale, added only when the route declares it
@@ -38,6 +43,7 @@ final class LaravelRouteUrlResolver implements RouteUrlResolverInterface, RouteB
         private readonly array $locales = [],
         private readonly string $localeParameter = 'locale',
         private readonly bool $setAppLocale = true,
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
 
     public function locales(array|string $locales): array
@@ -45,8 +51,16 @@ final class LaravelRouteUrlResolver implements RouteUrlResolverInterface, RouteB
         if (\is_array($locales)) {
             return $locales === [] ? [null] : $locales;
         }
-        if ($locales === 'all' && $this->locales !== []) {
+        if ($locales !== 'all') {
+            return [null];
+        }
+        if ($this->locales !== []) {
             return $this->locales;
+        }
+        // Otherwise the rule silently collapses to a single URL; once per process, not once per model.
+        if (!$this->warnedAboutLocales) {
+            $this->warnedAboutLocales = true;
+            $this->logger->warning('indexnow: a rule asks for locales: \'all\' but "router.locales" is empty; one URL in the current locale is generated instead of one per locale');
         }
 
         return [null];

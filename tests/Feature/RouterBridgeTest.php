@@ -14,6 +14,7 @@ use IndexNowKit\Laravel\Url\LaravelRouteUrlResolver;
 use IndexNowKit\Url\RouteUrlResolverInterface;
 use IndexNowKit\Url\UrlResolverInterface;
 use PHPUnit\Framework\Attributes\TestDox;
+use RuntimeException;
 
 /**
  * @property string $slug
@@ -29,6 +30,7 @@ final class UppercaseResolver implements UrlResolverInterface
 {
     public function __construct(private readonly LaravelRouteUrlResolver $router) {}
 
+    /** @return list<string> */
     public function resolve(object $subject, \IndexNowKit\Event $event): array
     {
         \assert($subject instanceof Article);
@@ -133,5 +135,19 @@ final class RouterBridgeTest extends LaravelTestCase
 
         self::assertSame([], IndexNowKit::urlsFor($article));
         self::assertStringContainsString('nope.resolver', implode("\n", $this->logger->messages('error')));
+    }
+
+    #[TestDox('a resolver binding that throws anything gets the core locator text, not the container exception')]
+    public function testResolverBindingThatThrows(): void
+    {
+        $this->app->bind('broken.resolver', static function (): never {
+            throw new RuntimeException('the CDN client is not configured');
+        });
+        IndexNowKit::observe(Article::class, [new IndexNow(resolver: 'broken.resolver')]);
+        $article = Article::query()->create(['slug' => 'y']);
+
+        self::assertSame([], IndexNowKit::urlsFor($article));
+        $errors = implode("\n", $this->logger->messages('error'));
+        self::assertStringContainsString('IndexNow URL resolver "broken.resolver" cannot be built by the container: the CDN client is not configured', $errors);
     }
 }

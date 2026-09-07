@@ -36,7 +36,8 @@ final class VerifyTest extends LaravelTestCase
     {
         $seen = [];
         $this->app->make(Dispatcher::class)->listen(Result::class, static function (Result $result) use (&$seen): void {
-            $seen[] = $result->status->value . ':' . ($result->reason?->value ?? '-');
+            $reason = $result->reason;
+            $seen[] = $result->status->value . ':' . ($reason === null ? '-' : $reason->value);
         });
         $this->transport
             ->onGet('https://www.example.com/posts/fine', new Response(200))

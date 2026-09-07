@@ -10,12 +10,13 @@ use Illuminate\Contracts\Foundation\Application;
 use IndexNowKit\Adapter\OptionalPackage;
 use IndexNowKit\Adapter\SubmitterFactoryInterface;
 use IndexNowKit\Check\CheckInterface;
+use IndexNowKit\Check\SampleGateCheck;
+use IndexNowKit\Check\SampleOptions;
 use IndexNowKit\Config;
+use IndexNowKit\Dispatch\DispatcherFactory;
 use IndexNowKit\Http\TransportInterface;
 use IndexNowKit\Key\KeyProviderInterface;
 use IndexNowKit\Laravel\Check\ModelSampler;
-use IndexNowKit\Laravel\Check\SampleOptions;
-use IndexNowKit\Laravel\Check\VerifySampleCheck;
 use IndexNowKit\Submission\SubmissionStoreInterface;
 use IndexNowKit\SubmitterInterface;
 use IndexNowKit\Url\UrlNormalizerInterface;
@@ -83,7 +84,7 @@ final class VerifyServices
         $app->singleton(self::CHECK, static fn(Container $app): CheckInterface => Package::installedCheck($app->make(VerifyConfig::class)));
         $app->singleton(self::DISPATCH_CHECK, static fn(Container $app): CheckInterface => Package::dispatchCheck($app->make(VerifyConfig::class), $app->make(Config::class), 'queue'));
         $app->singleton(self::TRANSPORT_CHECK, static fn(Container $app): CheckInterface => Package::transportCheck($app->make(VerifyConfig::class), $app->make(Config::class)));
-        $app->singleton(VerifySampleCheck::class, static fn(Container $app): VerifySampleCheck => new VerifySampleCheck(
+        $app->singleton(SampleGateCheck::class, static fn(Container $app): SampleGateCheck => SampleGateCheck::withPackage(
             $app->make(SampleOptions::class),
             Package::sampleCheck($app->make(self::TRANSPORT), $app->make(VerifyConfig::class), $app->make(UrlNormalizerInterface::class), $app->make(KeyProviderInterface::class), $app->make(ModelSampler::class)(...), $app->make(RobotsCache::class)),
         ));
@@ -97,7 +98,7 @@ final class VerifyServices
             if (!$app->make(VerifyConfig::class)->enabled) {
                 return $inner;
             }
-            $inWebRequest = $app->make(Config::class)->dispatch === 'sync' && !$app->make(Application::class)->runningInConsole();
+            $inWebRequest = $app->make(Config::class)->dispatch === DispatcherFactory::SYNC && !$app->make(Application::class)->runningInConsole();
 
             return Package::submitter($inner, $app->make(VerifyConfig::class), $app->make(self::TRANSPORT), $app->make(KeyProviderInterface::class), $app->make(UrlNormalizerInterface::class), $app->make($logger), $psr14($app), $app->make(SubmissionStoreInterface::class), $app->make(RobotsCache::class), $inWebRequest);
         });

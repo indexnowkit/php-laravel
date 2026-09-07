@@ -43,7 +43,9 @@ that domain.
 #[IndexNow(route: 'articles.show', params: ['article' => 'self'], locales: 'all')]
 ```
 
-- `locales: 'current'` (default) generates one URL; `'all'` one per `router.locales`; a list as given.
+- `locales: 'current'` (default) generates one URL; `'all'` one per `router.locales`; a list as given. `'all'` with an
+  empty `router.locales` falls back to the current locale alone — one warning in the log and one `indexnow:check` line
+  (`router.locales`), not silence.
 - The locale is added as the `router.locale_parameter` route parameter **only when the route declares it**
   (`/{locale}/articles/{article}`), so no query string sneaks in. With `set_app_locale`, `App::setLocale()` is switched
   for the duration of the generation and restored, which is what packages with localized slugs read.

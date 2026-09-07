@@ -24,12 +24,12 @@ final class IndexNowObserverSelfFieldsTest extends LaravelTestCase
         $this->transport->posts = [];
 
         $titleBound = new class implements RouteBindingFieldsInterface {
-            public function bindingFieldFor(string $route, string $param): ?string
+            public function bindingFieldFor(string $route, string $param): string
             {
                 return 'title';
             }
         };
-        $observer = new IndexNowObserver($this->kit(), router: $titleBound);
+        $observer = IndexNowObserver::forKit($this->kit(), router: $titleBound);
         $post->title = 'Renamed';
         $post->syncChanges();
         $observer->updated($post);
@@ -39,7 +39,7 @@ final class IndexNowObserverSelfFieldsTest extends LaravelTestCase
         $post->syncOriginal();
 
         $this->transport->posts = [];
-        $noRouter = new IndexNowObserver($this->kit());
+        $noRouter = IndexNowObserver::forKit($this->kit());
         $post->slug = 'after';
         $post->syncChanges();
         $noRouter->updated($post);

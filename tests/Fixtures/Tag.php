@@ -16,7 +16,11 @@ final class Tag extends Model
     protected $guarded = [];
     public $timestamps = false;
 
-    /** Attaching a tag touches the posts, which is how a pivot change reaches the observer (conformance A20). */
+    /**
+     * Attaching a tag touches the posts, which is how a pivot change reaches the observer (conformance A20).
+     *
+     * @var list<string>
+     */
     protected $touches = ['categorizedPosts'];
 
     /** @return BelongsToMany<CategorizedPost, $this> */

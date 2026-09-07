@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace IndexNowKit\Laravel\Tests\Feature;
 
-use Closure;
 use Illuminate\Contracts\Console\Kernel;
 use IndexNowKit\Adapter\OptionalPackage;
 use IndexNowKit\Console\ExitCode;
@@ -25,12 +24,13 @@ use Symfony\Component\Console\Output\BufferedOutput;
  */
 final class VerifyNotInstalledTest extends LaravelTestCase
 {
-    /**
-     * @return array<string, Closure>
-     */
     protected function overrideApplicationBindings($app): array
     {
-        return [IndexNowKitServiceProvider::VERIFY_PACKAGE => static fn(): OptionalPackage => VerifyServices::package(false)];
+        // Bound eagerly (not as a factory Closure): Testbench's own return type for this method is
+        // array<string, string>, so the value must be pre-computed and set directly on $app instead.
+        $app->instance(IndexNowKitServiceProvider::VERIFY_PACKAGE, VerifyServices::package(false));
+
+        return [];
     }
 
     protected function configOverrides(): array

@@ -9,6 +9,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use IndexNowKit\Attribute\{IndexNow, IndexNowDefaults};
 use IndexNowKit\Laravel\Eloquent\IndexNowable;
 
+/**
+ * @property string $slug
+ * @property bool   $published
+ * @property bool   $amp
+ */
 #[IndexNowDefaults(when: 'isPublished', fields: ['slug', 'title', 'body', 'published'])]
 #[IndexNow(route: 'posts.show', params: ['post' => 'self'])]                 // route model binding
 #[IndexNow(route: 'posts.amp', params: ['slug' => 'slug'], when: 'hasAmp')]
@@ -18,6 +23,7 @@ class Post extends Model
 {
     use IndexNowable;
 
+    /** @var array<string, string> */
     protected $casts = ['published' => 'bool', 'amp' => 'bool'];
 
     public function isPublished(): bool

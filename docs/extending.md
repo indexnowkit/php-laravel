@@ -19,9 +19,11 @@ The service provider registers one container binding per core interface. Replace
 | `IndexNowKit\Collector\CollectorInterface` (scoped) | `Collector` | a durable outbox, a per-tenant buffer |
 | `IndexNowKit\Attribute\AttributeReaderInterface` / `RuleRegistry` | `RuleRegistry` over `AttributeReader` | your own rule source |
 | `IndexNowKit\Url\RouteUrlResolverInterface` / `LaravelRouteUrlResolver` | the router bridge | another URL scheme |
-| `IndexNowKit\Url\ResolverLocatorInterface` | `ContainerResolverLocator` | — |
+| `IndexNowKit\Url\ResolverLocatorInterface` | `ArrayResolverLocator` over the container | — |
 | `IndexNowKit\Url\UrlResolverInterface` | `AttributeUrlResolver` | replace the whole "object → URLs" step |
-| `IndexNowKit\Url\GuardedUrlResolver`, `ObjectChangeHandler` | the facade's | — |
+| `IndexNowKit\Url\GuardedUrlResolver` | over the URL resolver | — |
+| `IndexNowKit\Url\ObjectChangeHandler` | over the rules, the resolver and the extractor | what an insert / update / delete means for URLs; this is what the Eloquent hooks resolve through |
+| `Psr\Clock\ClockInterface` | `IndexNowKit\Clock\SystemClock` | the time the throttle, the debounce window and the submission records read (`IndexNowKit\Testing\FrozenClock` in tests) |
 | `IndexNowKit\Dispatch\DispatcherInterface` | by `dispatch` | another delivery (an outbox table, a bus) |
 | `IndexNowKit\IndexNowKit` | the core facade | — |
 | `IndexNowKit\Key\KeyFileResponder` | over the key provider | — |
@@ -74,7 +76,9 @@ $this->app->singleton(CdnPurgeCheck::class);
 $this->app->tag([CdnPurgeCheck::class], IndexNowKitServiceProvider::CHECK_TAG);
 ```
 
-Add lines to the report; never throw — a failing check is an error line.
+Add lines to the report; never throw — a failing check is an error line. A tagged service that is not a
+`CheckInterface` is a `ConfigurationException` naming the tag when the checker is built, not a fatal in the middle of
+`indexnow:check`.
 
 ## Submission results
 
@@ -105,8 +109,12 @@ $this->app->extend(ParamExtractor::class, fn(ParamExtractor $extractor) => $extr
 
 `IndexNowObserver` keeps only what is Eloquent's (the change set from `getChanges()`/`getOriginal()`, the previous
 state from `getRawOriginal()`, `Connection::afterCommit()`); guarding, logging and the URLs of a row about to be
-deleted are the core's `Hook\ObserverHelper`. `SubmitUrlsJob` is `Retry\WorkerOutcome` plus `release()`/`fail()`
-with the delay the `RetryPolicy` computes. The signatures of the artisan commands are rendered from
+deleted are the core's `Hook\ObserverHelper` (`forChanges()`). The hooks read the `ObjectChangeHandler` binding and
+nothing else, so a `save()` that announces no URL never builds the submitter, the client, the transport, the throttle
+or the debounce store; the facade is made in the sink, once there are URLs to collect. `IndexNowObserver::forKit()`
+builds one over an existing facade. `SubmitUrlsJob` is `Retry\WorkerOutcome` plus `release()`/`fail()`
+with the delay the `RetryPolicy` computes, and it carries the attempts the batch already spent (`spentAttempts`) so
+`retry.max_attempts` bounds the batch and not each re-queued job. The signatures of the artisan commands are rendered from
 `Console\Definitions` and `Sitemap\Console\Definitions` (`CommandDefinition::laravelSignature()`), so `php artisan
 indexnow:submit-model --help` matches the bundle and Yii2. A custom command over a core runner can build its
 signature the same way.

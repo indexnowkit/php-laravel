@@ -41,7 +41,7 @@ final class CoreConformanceTest extends CoreConformanceTestCase
         return $this->transport;
     }
 
-    protected function secondHost(): ?string
+    protected function secondHost(): string
     {
         return 'example.de';
     }

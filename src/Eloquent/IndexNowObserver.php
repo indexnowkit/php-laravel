@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IndexNowKit\Laravel\Eloquent;
 
+use Closure;
 use Illuminate\Database\Eloquent\Model;
 use IndexNowKit\Attribute\ParamExtractor;
 use IndexNowKit\Attribute\RuleSource;
@@ -22,24 +23,49 @@ use Throwable;
  * collector through Connection::afterCommit(), which Laravel's DatabaseTransactionsManager runs only when the
  * outermost transaction commits and drops when the transaction (or the savepoint it belongs to) rolls back.
  *
+ * The hooks resolve through the container's `Url\ObjectChangeHandler` alone (rules, resolver, extractor, logger):
+ * a `save()` that produces no URL never builds the submitter, the client, the transport, the throttle or the
+ * debounce store. The facade is made in the sink, once there are URLs to collect.
+ *
  * Nothing here throws into the application: the core's ObjectChangeHandler logs and yields nothing on a bad rule,
- * and every hand-off is guarded by `Hook\ObserverHelper`. What is Laravel's: the change set from `getChanges()` /
- * `getOriginal()`, the previous state from `getRawOriginal()`, the commit boundary through `Connection::afterCommit()`.
+ * every hand-off is guarded by `Hook\ObserverHelper`, and a change handler the container cannot build is one error
+ * line per process. What is Laravel's: the change set from `getChanges()` / `getOriginal()`, the previous state
+ * from `getRawOriginal()`, the commit boundary through `Connection::afterCommit()`.
  */
 final class IndexNowObserver
 {
     /** Model events the observer handles; {@see IndexNowable} registers exactly these. */
     public const EVENTS = ['created', 'updated', 'deleting', 'deleted', 'restored'];
 
-    private readonly ObserverHelper $helper;
+    private ?ObserverHelper $helper = null;
+    /** The change handler could not be built: logged once, every later hook is a no-op. */
+    private bool $unavailable = false;
 
+    /**
+     * @param Closure(): ObjectChangeHandler $changes the container's change handler, resolved on the first hook
+     * @param Closure(list<string>): void    $sink    where the resolved URLs go (the facade's `collect()`), built only when
+     *                                                there are URLs: the graph behind it stays untouched otherwise
+     */
     public function __construct(
-        private readonly IndexNowKit $indexNow,
+        private readonly Closure $changes,
+        private readonly Closure $sink,
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly bool $enabled = true,
         private readonly ?RouteBindingFieldsInterface $router = null,
-    ) {
-        $this->helper = new ObserverHelper($indexNow, $logger);
+    ) {}
+
+    /** Over an already built facade (tests, an observer wired by hand): its change handler and its collector. */
+    public static function forKit(IndexNowKit $indexNow, LoggerInterface $logger = new NullLogger(), bool $enabled = true, ?RouteBindingFieldsInterface $router = null): self
+    {
+        return new self(
+            static fn(): ObjectChangeHandler => $indexNow->changes(),
+            static function (array $urls) use ($indexNow): void {
+                $indexNow->collect($urls);
+            },
+            $logger,
+            $enabled,
+            $router,
+        );
     }
 
     public function created(Model $model): void
@@ -59,7 +85,7 @@ final class IndexNowObserver
             }
 
             return [
-                ...$changes->renamed($model, $changeSet, self::previousState($model), $this->selfFields($model)),
+                ...$changes->renamed($model, $changeSet, self::previousState($model), $this->selfFields($changes, $model)),
                 ...$changes->updated($model, array_keys($changeSet), $changeSet),
             ];
         });
@@ -68,22 +94,24 @@ final class IndexNowObserver
     /** Before the row disappears: resolve now, deliver in deleted(). */
     public function deleting(Model $model): void
     {
-        if (!$this->enabled) {
+        $helper = $this->helper();
+        if ($helper === null) {
             return;
         }
-        $urls = $this->helper->guard($model, static fn(ObjectChangeHandler $changes): array => $changes->deleted($model));
+        $urls = $helper->guard($model, static fn(ObjectChangeHandler $changes): array => $changes->deleted($model));
         if ($urls !== null) {
-            $this->helper->rememberDeletion($model, $urls);
+            $helper->rememberDeletion($model, $urls);
         }
     }
 
     /** After a hard delete or a soft delete (the page answers 404 either way). */
     public function deleted(Model $model): void
     {
-        if (!$this->enabled) {
+        $helper = $this->helper();
+        if ($helper === null) {
             return;
         }
-        $urls = $this->helper->takeDeletion($model);
+        $urls = $helper->takeDeletion($model);
         if ($urls === null) {
             // deleting() was not seen (deleted without events on the way in); the model still carries its attributes.
             $this->guard($model, static fn(ObjectChangeHandler $changes): array => $changes->deleted($model));
@@ -104,12 +132,35 @@ final class IndexNowObserver
      */
     private function guard(Model $model, callable $resolve): void
     {
-        if (!$this->enabled) {
+        $helper = $this->helper();
+        if ($helper === null) {
             return;
         }
-        $urls = $this->helper->guard($model, $resolve);
+        $urls = $helper->guard($model, $resolve);
         if ($urls !== null) {
             $this->handOff($model, $urls);
+        }
+    }
+
+    /**
+     * The helper over the container's change handler, built on the first hook that needs it; null when the hooks are
+     * off or the change handler cannot be built (one error line, never an exception in `save()`).
+     */
+    private function helper(): ?ObserverHelper
+    {
+        if (!$this->enabled || $this->unavailable) {
+            return null;
+        }
+        if ($this->helper !== null) {
+            return $this->helper;
+        }
+        try {
+            return $this->helper = ObserverHelper::forChanges(($this->changes)(), $this->sink, $this->logger);
+        } catch (Throwable $e) {
+            $this->unavailable = true;
+            $this->logger->error('indexnow: cannot build the change handler; model changes are not announced: {error}', ['error' => $e->getMessage(), 'exception' => $e]);
+
+            return null;
         }
     }
 
@@ -147,7 +198,7 @@ final class IndexNowObserver
      */
     private function deliver(array $urls): void
     {
-        $this->helper->deliver($urls);
+        $this->helper()?->deliver($urls);
     }
 
     /**
@@ -171,10 +222,10 @@ final class IndexNowObserver
      *
      * @return list<string>
      */
-    private function selfFields(Model $model): array
+    private function selfFields(ObjectChangeHandler $changes, Model $model): array
     {
         $fields = [];
-        foreach ($this->indexNow->changes()->rulesOf($model) as $rule) {
+        foreach ($changes->rulesOf($model) as $rule) {
             if ($rule->source !== RuleSource::Route || $rule->route === null) {
                 continue;
             }

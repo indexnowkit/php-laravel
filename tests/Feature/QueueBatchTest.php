@@ -57,5 +57,64 @@ final class QueueBatchTest extends LaravelTestCase
         self::assertSame('job1', $dispatched->id);
         self::assertSame('seo', $dispatched->queue);
         self::assertSame(7, $dispatched->delay, 'Retry-After of the engine');
+        self::assertSame(1, $dispatched->spentAttempts, 'the attempt just made travels with the re-queued job');
+        self::assertSame(2, $dispatched->tries, 'and what is left of retry.max_attempts');
+    }
+
+    #[TestDox('retry.max_attempts bounds the batch, not each re-queued job: the last attempt fails instead of re-queueing again')]
+    public function testMaxAttemptsBoundsTheWholeBatch(): void
+    {
+        $policy = new RetryPolicy(maxAttempts: 2, baseDelay: 60, serverErrorDelay: 5);
+        $this->transport->willRespond(new Response(200), new Response(429, '', 7), new Response(429, '', 7));
+
+        // First job: two URLs, one accepted, one rejected -> a second job for the rest, carrying the spent attempt.
+        $first = new SubmitUrlsJob(['https://www.example.com/ok', 'https://www.example.com/later'], $policy, 'job2');
+        $first->setJob($this->worker(1));
+        $requeued = null;
+        $first->handle($this->app->make(SubmitterInterface::class), $this->logger, $this->busCollecting($requeued));
+
+        self::assertInstanceOf(SubmitUrlsJob::class, $requeued);
+        self::assertSame(1, $requeued->spentAttempts);
+        self::assertSame(1, $requeued->tries, 'one attempt left of retry.max_attempts: 2');
+
+        // Second job: a fresh queue message, so attempts() is 1 again — the batch is nevertheless out of attempts.
+        $worker = $this->createMock(Job::class);
+        $worker->method('attempts')->willReturn(1);
+        $worker->expects(self::never())->method('release');
+        $worker->expects(self::once())->method('fail');
+        $requeued->setJob($worker);
+        $requeued->handle($this->app->make(SubmitterInterface::class), $this->logger, $this->busExpectingNothing());
+
+        self::assertSame(2, $requeued->attempt());
+        self::assertStringContainsString('giving up on 1 URL(s) of job job2 after 2 attempt(s)', implode("\n", $this->logger->messages('error')));
+    }
+
+    private function worker(int $attempts): Job
+    {
+        $worker = $this->createMock(Job::class);
+        $worker->method('attempts')->willReturn($attempts);
+
+        return $worker;
+    }
+
+    private function busCollecting(?SubmitUrlsJob &$captured): BusDispatcher
+    {
+        $bus = $this->createMock(BusDispatcher::class);
+        $bus->expects(self::once())->method('dispatch')->willReturnCallback(static function (object $next) use (&$captured): mixed {
+            \assert($next instanceof SubmitUrlsJob);
+            $captured = $next;
+
+            return null;
+        });
+
+        return $bus;
+    }
+
+    private function busExpectingNothing(): BusDispatcher
+    {
+        $bus = $this->createMock(BusDispatcher::class);
+        $bus->expects(self::never())->method('dispatch');
+
+        return $bus;
     }
 }

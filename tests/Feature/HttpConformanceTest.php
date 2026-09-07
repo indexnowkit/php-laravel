@@ -29,9 +29,10 @@ final class HttpConformanceTest extends LaravelTestCase
 
             return ['id' => $post->id];
         });
-        $router->post('/articles/fail', static function (): never {
-            DB::transaction(static function (): void {
+        $router->post('/articles/fail', static function (): void {
+            DB::transaction(static function (): never {
                 Post::query()->create(['slug' => 'nope']);
+
                 throw new RuntimeException('boom');
             });
         });

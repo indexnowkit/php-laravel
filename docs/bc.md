@@ -15,9 +15,10 @@ The core's tiers ("call", "implement", "may grow") apply to every core class you
 | **Container bindings** listed in [extending.md](extending.md) | Each abstract stays bound to an implementation of the same interface; rebinding and decorating stay possible. |
 | **Facade** `Facades\IndexNowKit` and **`IndexNowManager`** (`kit()`, `rules()`, `observe()`, `submit()`, `submitModel()`, `submitModels()`, `urlsFor()`, `urlsForAll()`, `explain()`, `collect()`, `flush()`) | Method names and parameter names stay; new parameters are appended with defaults. |
 | **Trait `Eloquent\IndexNowable`**, **`Eloquent\IndexNowObserver`**, **`Eloquent\RouteBindingFieldsInterface`** | The trait stays a drop-in; the observer's public hooks keep their names; the interface gets no new method without a major. |
-| **Queue job** `Queue\SubmitUrlsJob` | Its constructor and the serialized shape stay, so jobs queued before an upgrade still run after it. |
+| **Queue job** `Queue\SubmitUrlsJob` | Its constructor and the serialized shape stay (new parameters are appended with a default), so jobs queued before an upgrade still run after it. |
 | **Route** `indexnow.key_file` (or `key_file.route_name`, `{key}.txt`) | Name and shape stay. |
-| **Check classes** `Check\QueueCheck`, `Check\EloquentCheck`, `Check\CacheStoreProbe` and the `indexnowkit.check` tag | Names stay; adding a tagged `CheckInterface` keeps working. |
+| **Check classes** `Check\QueueCheck`, `Check\EloquentCheck`, `Check\RouterCheck`, `Check\CacheStoreProbe` and the `indexnowkit.check` tag | Names stay; adding a tagged `CheckInterface` keeps working. A tagged service of another type is a `ConfigurationException`. |
+| **Exceptions** | Configuration mistakes are `IndexNowKit\Exception\ConfigurationException`, a bad command argument is `IndexNowKit\Exception\InvalidArgumentException` — both from the core, both `IndexNowException`. |
 
 Not a contract: log message texts (their `context` keys are), the exact wording the commands print (exit codes and
 levels are), and the service provider's private methods.

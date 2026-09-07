@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace IndexNowKit\Laravel\Tests\Feature;
 
-use Closure;
 use Illuminate\Contracts\Console\Kernel;
 use IndexNowKit\Adapter\OptionalPackage;
 use IndexNowKit\Config;
@@ -25,12 +24,13 @@ use Symfony\Component\Console\Output\BufferedOutput;
  */
 final class SitemapNotInstalledTest extends LaravelTestCase
 {
-    /**
-     * @return array<string, Closure>
-     */
     protected function overrideApplicationBindings($app): array
     {
-        return [IndexNowKitServiceProvider::SITEMAP_PACKAGE => static fn(): OptionalPackage => SitemapServices::package(false)];
+        // Bound eagerly (not as a factory Closure): Testbench's own return type for this method is
+        // array<string, string>, so the value must be pre-computed and set directly on $app instead.
+        $app->instance(IndexNowKitServiceProvider::SITEMAP_PACKAGE, SitemapServices::package(false));
+
+        return [];
     }
 
     protected function configOverrides(): array

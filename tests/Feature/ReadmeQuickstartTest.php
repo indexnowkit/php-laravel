@@ -31,10 +31,12 @@ final class ReadmeQuickstartTest extends LaravelTestCase
     {
         $category = Category::query()->create(['slug' => 'news']);
         $post = new Post();
-        $post->slug = 'hello';
-        $post->title = 'Hello';
-        $post->published = true;
-        $post->amp = true;
+        // setAttribute(), not the magic property (Post is the README fixture verbatim and carries no
+        // @property docblock to keep it copy-pasteable): both go through the same Eloquent attribute bag.
+        $post->setAttribute('slug', 'hello');
+        $post->setAttribute('title', 'Hello');
+        $post->setAttribute('published', true);
+        $post->setAttribute('amp', true);
         $post->category()->associate($category);
         $post->save();
         $this->kit()->flush();

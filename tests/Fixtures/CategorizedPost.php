@@ -28,6 +28,7 @@ final class CategorizedPost extends Model
 
     protected $table = 'categorized_posts';
     protected $guarded = [];
+    /** @var array<string, string> */
     protected $casts = ['views' => 'int'];
 
     /** @return BelongsTo<Category, $this> */

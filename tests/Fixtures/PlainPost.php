@@ -17,5 +17,6 @@ final class PlainPost extends Model
     protected $table = 'posts';
     protected $guarded = [];
     public $timestamps = false;
+    /** @var array<string, string> */
     protected $casts = ['published' => 'bool'];
 }

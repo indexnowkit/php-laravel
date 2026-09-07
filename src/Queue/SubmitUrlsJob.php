@@ -19,6 +19,11 @@ use RuntimeException;
  * delay RetryPolicy computes (Retry-After wins) until `retry.max_attempts`; final failures (400, 403, 422) fail
  * the job without retry, so a broken key file shows up in failed_jobs. Successful URLs are debounced, so a
  * released job only resends what was rejected.
+ *
+ * `retry.max_attempts` bounds the batch, not the single queue message: a partially accepted batch comes back as a
+ * new job (`release()` would replay the whole payload), and a new job's `attempts()` starts at one again, so the
+ * attempts already spent travel with it in {@see $spentAttempts}. {@see attempt()} is the number every decision and
+ * every log line uses.
  */
 final class SubmitUrlsJob implements ShouldQueue
 {
@@ -28,12 +33,13 @@ final class SubmitUrlsJob implements ShouldQueue
     public int $tries;
 
     /**
-     * @param list<string> $urls normalized absolute URLs
-     * @param string       $id   correlation id shared by the dispatch and worker log lines
+     * @param list<string> $urls          normalized absolute URLs
+     * @param string       $id            correlation id shared by the dispatch and worker log lines
+     * @param int          $spentAttempts attempts this batch already used up in the jobs before this one (0 for the first)
      */
-    public function __construct(public readonly array $urls, public readonly RetryPolicy $policy, public readonly string $id)
+    public function __construct(public readonly array $urls, public readonly RetryPolicy $policy, public readonly string $id, public readonly int $spentAttempts = 0)
     {
-        $this->tries = $policy->maxAttempts;
+        $this->tries = max(1, $policy->maxAttempts - $spentAttempts);
     }
 
     public static function newId(): string
@@ -41,15 +47,22 @@ final class SubmitUrlsJob implements ShouldQueue
         return bin2hex(random_bytes(6));
     }
 
+    /** 1-based number of the attempt this batch is making now, across every job it has been re-queued as. */
+    public function attempt(): int
+    {
+        return $this->spentAttempts + $this->attempts();
+    }
+
     /**
-     * Backoff Laravel applies when the job throws; releases from handle() carry their own delay.
+     * Backoff Laravel applies when the job throws; releases from handle() carry their own delay. The batch's own
+     * attempt numbering continues, so a re-queued job does not start the curve over.
      *
      * @return list<int>
      */
     public function backoff(): array
     {
         $delays = [];
-        for ($attempt = 1; $attempt < $this->policy->maxAttempts; ++$attempt) {
+        for ($attempt = $this->spentAttempts + 1; $attempt < $this->policy->maxAttempts; ++$attempt) {
             $delays[] = max(0, min($this->policy->maxDelay, (int) round($this->policy->serverErrorDelay * $this->policy->multiplier ** ($attempt - 1))));
         }
 
@@ -60,17 +73,19 @@ final class SubmitUrlsJob implements ShouldQueue
     {
         $outcome = WorkerOutcome::of($submitter->submit($this->urls));
         if ($outcome->hasRetryable()) {
-            $delay = $outcome->delay($this->policy, $this->attempts());
+            $attempt = $this->attempt();
+            $delay = $outcome->delay($this->policy, $attempt);
             if ($delay === null) {
-                $logger->error(...$outcome->gaveUpLog($this->id, $this->attempts()));
-                $this->fail(new RuntimeException(\sprintf('IndexNow: %d URL(s) still rejected after %d attempt(s) (job %s)', \count($outcome->retryUrls), $this->attempts(), $this->id)));
+                $logger->error(...$outcome->gaveUpLog($this->id, $attempt));
+                $this->fail(new RuntimeException(\sprintf('IndexNow: %d URL(s) still rejected after %d attempt(s) (job %s)', \count($outcome->retryUrls), $attempt, $this->id)));
 
                 return;
             }
-            $logger->info(...$outcome->retryLog($this->id, $delay, $this->attempts()));
+            $logger->info(...$outcome->retryLog($this->id, $delay, $attempt));
             if ($bus !== null && \count($outcome->retryUrls) < \count($this->urls)) {
-                // Part of the batch went through: only the rest comes back, as its own job — release() would replay the whole payload.
-                $next = new self($outcome->retryUrls, $this->policy, $this->id);
+                // Part of the batch went through: only the rest comes back, as its own job — release() would replay the
+                // whole payload. The attempts spent so far travel with it, so max_attempts bounds the batch.
+                $next = new self($outcome->retryUrls, $this->policy, $this->id, $attempt);
                 $next->onConnection($this->connection)->onQueue($this->queue)->delay($delay);
                 $bus->dispatch($next);
 

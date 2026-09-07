@@ -25,7 +25,12 @@ final class Post extends Model
     protected $table = 'posts';
     protected $guarded = [];
     public $timestamps = false;
+    /** @var array<string, string> */
     protected $casts = ['published' => 'bool', 'views' => 'int'];
-    /** Eloquent does not read DB defaults back after insert: a `when` field needs a model default to be visible in `created`. */
+    /**
+     * Eloquent does not read DB defaults back after insert: a `when` field needs a model default to be visible in `created`.
+     *
+     * @var array<string, mixed>
+     */
     protected $attributes = ['title' => 'title', 'published' => true, 'views' => 0];
 }

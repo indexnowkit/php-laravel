@@ -20,8 +20,10 @@ job) becomes one `IndexNowKit\Laravel\Queue\SubmitUrlsJob` carrying the normaliz
 4. Anything else finishes the job. URLs that were accepted are recorded in the debounce store, so a released job
    only resends what was rejected.
 
-`$job->tries` equals `retry.max_attempts`; `backoff()` mirrors the 5xx schedule for the case the job throws instead
-of releasing.
+A batch that was accepted in part comes back as a *new* job with the rejected URLs only (`release()` would replay the
+whole payload). `max_attempts` bounds the batch, not the queue message: the attempts already spent travel with the
+new job in `$job->spentAttempts`, `$job->attempt()` is the batch-wide attempt number, and `$job->tries` is what is
+left of `retry.max_attempts`. `backoff()` continues the same curve for the case the job throws instead of releasing.
 
 ## Why failures are failures
 

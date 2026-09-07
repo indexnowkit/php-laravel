@@ -8,9 +8,9 @@ use Illuminate\Console\Command;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
 use IndexNowKit\Adapter\OptionalPackage;
+use IndexNowKit\Check\SampleOptions;
 use IndexNowKit\Console\CheckRunner;
 use IndexNowKit\Console\Definitions;
-use IndexNowKit\Laravel\Check\SampleOptions;
 use IndexNowKit\Laravel\Config\ConfigFactory;
 use IndexNowKit\Laravel\IndexNowKitServiceProvider;
 

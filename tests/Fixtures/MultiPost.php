@@ -28,6 +28,7 @@ final class MultiPost extends Model
     protected $table = 'multi_posts';
     protected $guarded = [];
     public $timestamps = false;
+    /** @var array<string, string> */
     protected $casts = ['published' => 'bool', 'amp' => 'bool'];
 
     public function isPublished(): bool
