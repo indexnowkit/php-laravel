@@ -10,6 +10,7 @@ use Illuminate\Database\Schema\Builder;
 use Illuminate\Routing\Router;
 use IndexNowKit\Laravel\Tests\Fixtures\Category;
 use IndexNowKit\Laravel\Tests\Fixtures\Post;
+use IndexNowKit\Testing\Conformance\Arrays;
 
 /**
  * The package's test application: config, routes and schema of the conformance fixtures, shared by the Testbench
@@ -51,12 +52,7 @@ final class Fixtures
      */
     public static function merge(array $base, array $overrides): array
     {
-        foreach ($overrides as $key => $value) {
-            $current = $base[$key] ?? null;
-            $base[$key] = \is_array($value) && $value !== [] && !array_is_list($value) && \is_array($current) ? self::merge($current, $value) : $value;
-        }
-
-        return $base;
+        return Arrays::merge($base, $overrides);
     }
 
     public static function routes(Router $router): void
