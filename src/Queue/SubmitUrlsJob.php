@@ -8,6 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
+use IndexNowKit\Dispatch\BatchingDispatcher;
 use IndexNowKit\Retry\RetryPolicy;
 use IndexNowKit\Retry\WorkerOutcome;
 use IndexNowKit\SubmitterInterface;
@@ -42,9 +43,10 @@ final class SubmitUrlsJob implements ShouldQueue
         $this->tries = max(1, $policy->maxAttempts - $spentAttempts);
     }
 
+    /** A fresh correlation id: the core's `Dispatch\BatchingDispatcher::newJobId()`, kept here for the callers of 0.14. */
     public static function newId(): string
     {
-        return bin2hex(random_bytes(6));
+        return BatchingDispatcher::newJobId();
     }
 
     /** 1-based number of the attempt this batch is making now, across every job it has been re-queued as. */

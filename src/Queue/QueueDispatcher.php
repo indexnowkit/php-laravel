@@ -6,46 +6,51 @@ namespace IndexNowKit\Laravel\Queue;
 
 use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
 use IndexNowKit\Config;
+use IndexNowKit\Dispatch\BatchingDispatcher;
 use IndexNowKit\Dispatch\DispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
-use Throwable;
 
 /**
- * `dispatch: queue`: hands each flushed batch to SubmitUrlsJob on the configured connection/queue.
+ * `dispatch: queue`: hands each flushed batch to SubmitUrlsJob on the configured connection/queue. The batching,
+ * the correlation id and the "they are lost" log line are the core's `Dispatch\BatchingDispatcher`; this class is
+ * the push onto the Laravel bus.
  */
 final class QueueDispatcher implements DispatcherInterface
 {
+    private readonly BatchingDispatcher $batches;
+
     public function __construct(
         private readonly BusDispatcher $bus,
         private readonly Config $config,
-        private readonly LoggerInterface $logger = new NullLogger(),
+        LoggerInterface $logger = new NullLogger(),
         private readonly ?string $connection = null,
         private readonly ?string $queue = null,
         private readonly int $delay = 0,
-    ) {}
+    ) {
+        $this->batches = new BatchingDispatcher($this->push(...), $config, $logger, 'job');
+    }
 
-    /** One job per `batch.max_urls` URLs: a bulk import of 500 000 rows is many jobs the queue accepts, not one payload SQS rejects. */
     public function dispatch(array $urls): void
     {
-        foreach (array_chunk($urls, max(1, $this->config->batchMaxUrls)) as $chunk) {
-            $id = SubmitUrlsJob::newId();
-            try {
-                $job = new SubmitUrlsJob($chunk, $this->config->retryPolicy(), $id);
-                if ($this->connection !== null && $this->connection !== '') {
-                    $job->onConnection($this->connection);
-                }
-                if ($this->queue !== null && $this->queue !== '') {
-                    $job->onQueue($this->queue);
-                }
-                if ($this->delay > 0) {
-                    $job->delay($this->delay);
-                }
-                $this->bus->dispatch($job);
-                $this->logger->debug('indexnow: {count} URL(s) queued as job {id}', ['count' => \count($chunk), 'id' => $id, 'urls' => $this->config->logSample($chunk)]);
-            } catch (Throwable $e) {
-                $this->logger->error('indexnow: cannot queue {count} URL(s) (job {id}), they are lost: {error}', ['count' => \count($chunk), 'id' => $id, 'error' => $e->getMessage(), 'exception' => $e, 'urls' => $this->config->logSample($chunk)]);
-            }
+        $this->batches->dispatch($urls);
+    }
+
+    /**
+     * @param list<string> $urls
+     */
+    private function push(array $urls, string $id): void
+    {
+        $job = new SubmitUrlsJob($urls, $this->config->retryPolicy(), $id);
+        if ($this->connection !== null && $this->connection !== '') {
+            $job->onConnection($this->connection);
         }
+        if ($this->queue !== null && $this->queue !== '') {
+            $job->onQueue($this->queue);
+        }
+        if ($this->delay > 0) {
+            $job->delay($this->delay);
+        }
+        $this->bus->dispatch($job);
     }
 }

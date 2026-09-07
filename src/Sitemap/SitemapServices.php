@@ -11,13 +11,14 @@ use IndexNowKit\Adapter\SubmitterFactoryInterface;
 use IndexNowKit\Console\ResultFormatterInterface;
 use IndexNowKit\Http\TransportInterface;
 use IndexNowKit\IndexNowKit;
-use IndexNowKit\Laravel\Console\SitemapCommand;
 use IndexNowKit\Laravel\IndexNowKitServiceProvider;
 use IndexNowKit\Sitemap\Adapter\SitemapServices as Package;
 use IndexNowKit\Sitemap\Check\SitemapSpoolCheck;
+use IndexNowKit\Sitemap\Console\SitemapCommand;
 use IndexNowKit\Sitemap\Console\SitemapRunner;
 use IndexNowKit\Sitemap\SitemapConfig;
 use IndexNowKit\Sitemap\SitemapSourceInterface;
+use Psr\Clock\ClockInterface;
 
 /**
  * The sitemap bindings: the container ids and the Laravel side (the config repository, the artisan command) over the
@@ -51,7 +52,7 @@ final class SitemapServices
     }
 
     /**
-     * @return list<class-string> the artisan command(s)
+     * @return list<class-string> the artisan command(s): the package's `Sitemap\Console\SitemapCommand`, bound by {@see register()}
      */
     public static function commands(): array
     {
@@ -75,7 +76,10 @@ final class SitemapServices
             $app->make(ResultFormatterInterface::class),
             'indexnow.sitemap.url',
             $app->make(IndexNowKitServiceProvider::UNVERIFIED_SUBMITTER_FACTORY),
+            $app->make(ClockInterface::class),
         ));
+        // the command class of the package, over the runner: artisan resolves it lazily by its #[AsCommand] name
+        $app->singleton(SitemapCommand::class, static fn(Container $app): SitemapCommand => Package::command($app->make(SitemapRunner::class), 'indexnow.sitemap.url'));
     }
 
     /**

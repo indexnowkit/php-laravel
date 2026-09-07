@@ -12,6 +12,39 @@ of audit 0.13 W2 does not apply here until the framework does.
 
 ### Changed
 
+- **The artisan commands are the command classes of the packages; `Console\*Command` of this package is gone** (wave
+  M, spec 19 §2.1 and §4.1 — spec 18 §9 had said artisan commands must extend `Illuminate\Console\Command`, which is
+  not so: `Illuminate\Console\Application::resolve()` takes any symfony/console command). `indexnow:check`,
+  `indexnow:config`, `indexnow:submit`, `indexnow:submit-model`, `indexnow:explain`, `indexnow:key:generate` and the
+  three "not installed" stubs are `IndexNowKit\Console\Command\*` of `indexnowkit/console` 0.5 (`submit-model` is
+  `SubmitSubjectsCommand`, named by the vocabulary, registered through a `Symfony\Component\Console\Command\LazyCommand`
+  so `php artisan` never builds it before it runs), `indexnow:sitemap` is `IndexNowKit\Sitemap\Console\SitemapCommand`
+  (sitemap 0.8), `indexnow:history` and `indexnow:status` are `IndexNowKit\History\Console\HistoryCommand` /
+  `StatusCommand` (history 0.4) — the same names, arguments, options, exit codes and `--json` as before, the same
+  classes the Symfony bundle and the Yii3 package register. The class argument stays `model`
+  (`Artisan::call('indexnow:submit-model', ['model' => Post::class])`), through the `classArgument` of the two
+  commands. Each command is a binding of its own: `$this->app->extend(CheckCommand::class, …)` replaces one, a
+  command of your own with the same name registered later shadows one. What `check` and `config` read is
+  `Console\ConfigSource` (a `Console\ConfigSourceInterface`, bound). *Migration*: the twelve classes were `final`,
+  nobody extended them; code that resolved one from the container resolves the package's class instead (the names
+  are the same after `IndexNowKit\Console\Command\`, `…\Sitemap\Console\`, `…\History\Console\`).
+  `Check\ModelSampler` is `IndexNowKit\Console\SubjectSampler` (the same class four adapters carried); `Console\ModelLoader`
+  extends `IndexNowKit\Console\AbstractSubjectLoader` (its constructor is unchanged; `findOne()` / `findMany()` are what is Eloquent's).
+- **`Check\RouterCheck` is the core's `Check\LocalesCheck`** (same code `router.locales`, same texts, one class for the
+  three adapters that print the line; the classes it reads are the `--sample-class` values, as before). *Migration*:
+  the class was listed in docs/bc.md as a stable name; a check registered by hand becomes `new LocalesCheck($locales,
+  $reader, fn () => [Post::class], 'router.locales', 'locale')`. Decision §6.4 of spec 19: no wrapper kept.
+- **`Queue\QueueDispatcher` is the push onto the bus around the core's `Dispatch\BatchingDispatcher`** (the constructor
+  is unchanged); `Queue\SubmitUrlsJob::newId()` delegates to `BatchingDispatcher::newJobId()`; the log lines are the
+  core's (`{count} URL(s) queued as job {id}`, `cannot queue {count} URL(s) (job {id}), they are lost: {error}` — the
+  texts this adapter already printed). `Url\LaravelRouteUrlResolver` decides the locale expansion, the pinned origin
+  and the rebase through the core's `Url\RouteOrigin` (the same behaviour, the warning text unchanged).
+  `Check\CacheStoreProbe` writes the core's `DebounceStoreCheck::PROBE_KEY` (`indexnowkit_check`, no colon: PSR-16
+  reserves it) where it read `indexnowkit:check`. `indexnow:status` describes the debounce store as
+  `cache (ArrayStore)` — `<store> (<StoreClass>)`, the text of `History\Adapter\HistoryServices::describeStore()` shared
+  with Yii2 and Yii3 — where it said `cache (array)`. `Config\ConfigFactory` folds the packages' options through
+  `OptionalPackage::ownedOptions()` / `ignoredBlocks()`. The `php artisan about` lines of an absent package come
+  from the core's predicate.
 - **`Eloquent\IndexNowObserver` resolves through the change handler, not through the facade.** Its constructor now
   takes a `Closure(): ObjectChangeHandler` and a `Closure(list<string>): void` sink instead of `IndexNowKit`, so the
   first `save()` of any model builds the rules, the resolver and the extractor and nothing else: the submitter, the
@@ -39,10 +72,10 @@ of audit 0.13 W2 does not apply here until the framework does.
 
 ### Added
 
-- **`Check\RouterCheck`**: `indexnow:check` prints the locales `locales: 'all'` expands to, and warns naming
-  `router.locales` when a rule the command can see (`--sample-class=<FQCN>`) asks for every locale while the list is
-  empty. At run time the same situation is one warning per process from `Url\LaravelRouteUrlResolver`, which used to
-  collapse to a single URL without a word.
+- **The `router.locales` line of `indexnow:check`** (the core's `Check\LocalesCheck`, see "Changed"): the locales
+  `locales: 'all'` expands to, and a warning naming `router.locales` when a rule the command can see
+  (`--sample-class=<FQCN>`) asks for every locale while the list is empty. At run time the same situation is one
+  warning per process from `Url\LaravelRouteUrlResolver`, which used to collapse to a single URL without a word.
 - A service tagged `indexnowkit.check` that is not a `Check\CheckInterface` is now a `ConfigurationException` naming
   the tag when the checker is built, instead of a fatal in the middle of the check run.
 

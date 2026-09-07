@@ -36,6 +36,8 @@ The service provider registers one container binding per core interface. Replace
 | `IndexNowKit\Console\ResultFormatterInterface` | `ResultRenderer` | command output (your JSON envelope or table style) |
 | `IndexNowKit\Adapter\SubmitterFactoryInterface` | `SubmitterFactory` | what `--force` / `--dry-run` submit through |
 | `IndexNowKit\Console\Vocabulary`, `Console\*Runner` | Laravel words; the command bodies | reuse a runner from your own command (a tenant loop over `SubmitSubjectsRunner`) |
+| `IndexNowKit\Console\ConfigSourceInterface` | `Console\ConfigSource` | what `indexnow:check` and `indexnow:config` read (the config repository, its strict build, the package blocks) |
+| `IndexNowKit\Console\Command\*`, `Sitemap\Console\SitemapCommand`, `History\Console\{History,Status}Command` | the command classes of the packages, one binding each | replace one command ("Replacing a command" below) |
 | `indexnowkit.logger` | `Log::channel(logging.channel)` | a PSR-3 logger of your own (tests: `ArrayLogger`) |
 
 ## Custom resolvers
@@ -114,7 +116,25 @@ nothing else, so a `save()` that announces no URL never builds the submitter, th
 or the debounce store; the facade is made in the sink, once there are URLs to collect. `IndexNowObserver::forKit()`
 builds one over an existing facade. `SubmitUrlsJob` is `Retry\WorkerOutcome` plus `release()`/`fail()`
 with the delay the `RetryPolicy` computes, and it carries the attempts the batch already spent (`spentAttempts`) so
-`retry.max_attempts` bounds the batch and not each re-queued job. The signatures of the artisan commands are rendered from
-`Console\Definitions` and `Sitemap\Console\Definitions` (`CommandDefinition::laravelSignature()`), so `php artisan
-indexnow:submit-model --help` matches the bundle and Yii2. A custom command over a core runner can build its
-signature the same way.
+`retry.max_attempts` bounds the batch and not each re-queued job. The artisan commands are the command
+classes of `indexnowkit/console`, `indexnowkit/sitemap` and `indexnowkit/history` themselves — artisan runs any
+symfony/console command — so `php artisan indexnow:submit-model --help` is byte for byte what the bundle and Yii3
+print. A custom command over a core runner extends `Symfony\Component\Console\Command\Command` and calls
+`Definitions::check()->applyTo($this)` in `configure()`, or extends `Illuminate\Console\Command` and declares its
+own `$signature`.
+
+## Replacing a command
+
+Every command is a container binding under its class name, so the container's own tools apply:
+
+```php
+// decorate: the same name, your behaviour around the package's
+$this->app->extend(\IndexNowKit\Console\Command\CheckCommand::class, fn ($command, $app) => new MyCheckCommand($command));
+
+// or register a command of your own with the same name after the package: the later registration wins in artisan
+$this->commands([MyCheckCommand::class]);
+```
+
+`indexnow:submit-model` is registered through a `Symfony\Component\Console\Command\LazyCommand` (its name comes from
+the vocabulary, not from `#[AsCommand]`): replacing the `SubmitSubjectsCommand` binding is enough, the lazy wrapper
+resolves it on first run.

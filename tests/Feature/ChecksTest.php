@@ -13,13 +13,13 @@ use IndexNowKit\Check\CheckInterface;
 use IndexNowKit\Check\CheckLevel;
 use IndexNowKit\Check\CheckReport;
 use IndexNowKit\Check\DebounceStoreCheck;
+use IndexNowKit\Check\LocalesCheck;
 use IndexNowKit\Check\SampleGateCheck;
 use IndexNowKit\Check\SampleOptions;
 use IndexNowKit\Config;
 use IndexNowKit\Exception\ConfigurationException;
 use IndexNowKit\Laravel\Check\CacheStoreProbe;
 use IndexNowKit\Laravel\Check\QueueCheck;
-use IndexNowKit\Laravel\Check\RouterCheck;
 use IndexNowKit\Laravel\IndexNowKitServiceProvider;
 use IndexNowKit\Laravel\Tests\LaravelTestCase;
 use IndexNowKit\Laravel\Tests\Support\Fixtures;
@@ -112,7 +112,7 @@ final class ChecksTest extends LaravelTestCase
     {
         $report = $this->app->make(CheckerInterface::class)->run();
 
-        CheckOutputAssertions::assertEveryItemHasCode($report, 'queue.dispatch', DebounceStoreCheck::CODE, 'eloquent.enabled', RouterCheck::CODE, SitemapSpoolCheck::CODE, 'key_file.status');
+        CheckOutputAssertions::assertEveryItemHasCode($report, 'queue.dispatch', DebounceStoreCheck::CODE, 'eloquent.enabled', LocalesCheck::CODE, SitemapSpoolCheck::CODE, 'key_file.status');
     }
 
     #[TestDox('router.locales: the configured list is one ok line; empty with a rule asking for locales: all is one warning naming router.locales')]
@@ -122,17 +122,22 @@ final class ChecksTest extends LaravelTestCase
         $samples = $this->app->make(SampleOptions::class);
         $samples->classes = [MultiLocalePost::class . ':7'];
 
-        $configured = new RouterCheck(['en', 'de'], $rules, $samples);
+        // the provider's binding: the core's check over the --sample-class values; the list is read when the check runs
+        $bound = $this->app->make(LocalesCheck::class);
+        self::assertSame([CheckLevel::Ok], $this->levels($bound), 'the fixtures configure router.locales');
+        self::assertStringContainsString('router.locales: ', $this->messages($bound)[0]);
+
+        $configured = new LocalesCheck(['en', 'de'], $rules, static fn(): array => [MultiLocalePost::class], 'router.locales', 'locale');
         self::assertSame([CheckLevel::Ok], $this->levels($configured));
         self::assertStringContainsString('router.locales: en, de', $this->messages($configured)[0]);
 
-        $empty = new RouterCheck([], $rules, $samples);
+        $empty = new LocalesCheck([], $rules, static fn(): array => [MultiLocalePost::class], 'router.locales', 'locale');
         self::assertSame([CheckLevel::Warning], $this->levels($empty));
         self::assertStringContainsString('router.locales is empty', $this->messages($empty)[0]);
         self::assertStringContainsString(MultiLocalePost::class, $this->messages($empty)[0]);
 
         $samples->classes = [];
-        self::assertSame([], $this->levels(new RouterCheck([], $rules, $samples)), 'no visible rule asks for every locale: no line, no noise');
+        self::assertSame([], $this->levels(new LocalesCheck([], $rules, static fn(): array => [], 'router.locales', 'locale')), 'no visible rule asks for every locale: no line, no noise');
     }
 
     #[TestDox('the provider binds the core sample gate, not a copy of it')]

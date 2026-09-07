@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace IndexNowKit\Laravel;
 
 use Closure;
+use Illuminate\Console\Application as Artisan;
 use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Config\Repository;
@@ -29,6 +30,7 @@ use IndexNowKit\Check\Checker;
 use IndexNowKit\Check\CheckerInterface;
 use IndexNowKit\Check\CheckInterface;
 use IndexNowKit\Check\DebounceStoreCheck;
+use IndexNowKit\Check\LocalesCheck;
 use IndexNowKit\Check\SampleGateCheck;
 use IndexNowKit\Check\SampleOptions;
 use IndexNowKit\Client;
@@ -37,9 +39,25 @@ use IndexNowKit\Clock\SystemClock;
 use IndexNowKit\Collector\Collector;
 use IndexNowKit\Collector\CollectorInterface;
 use IndexNowKit\Config;
+use IndexNowKit\Console\CheckRunner;
+use IndexNowKit\Console\Command\CheckCommand;
+use IndexNowKit\Console\Command\ConfigCommand;
+use IndexNowKit\Console\Command\ExplainCommand;
+use IndexNowKit\Console\Command\HistoryNotInstalledCommand;
+use IndexNowKit\Console\Command\KeyGenerateCommand;
+use IndexNowKit\Console\Command\SitemapNotInstalledCommand;
+use IndexNowKit\Console\Command\StatusNotInstalledCommand;
+use IndexNowKit\Console\Command\SubmitCommand;
+use IndexNowKit\Console\Command\SubmitSubjectsCommand;
+use IndexNowKit\Console\ConfigSourceInterface;
+use IndexNowKit\Console\Definitions;
+use IndexNowKit\Console\ExplainRunner;
+use IndexNowKit\Console\KeyGenerateRunner;
 use IndexNowKit\Console\ResultFormatterInterface;
 use IndexNowKit\Console\ResultRenderer;
 use IndexNowKit\Console\SubjectLoaderInterface;
+use IndexNowKit\Console\SubjectSampler;
+use IndexNowKit\Console\SubmitSubjectsRunner;
 use IndexNowKit\Console\Vocabulary;
 use IndexNowKit\Debounce\DebounceStoreFactory;
 use IndexNowKit\Debounce\DebounceStoreInterface;
@@ -55,20 +73,10 @@ use IndexNowKit\Key\KeyValidator;
 use IndexNowKit\Key\StaticKeyProvider;
 use IndexNowKit\Laravel\Check\CacheStoreProbe;
 use IndexNowKit\Laravel\Check\EloquentCheck;
-use IndexNowKit\Laravel\Check\ModelSampler;
 use IndexNowKit\Laravel\Check\QueueCheck;
-use IndexNowKit\Laravel\Check\RouterCheck;
 use IndexNowKit\Laravel\Config\ConfigFactory;
-use IndexNowKit\Laravel\Console\CheckCommand;
-use IndexNowKit\Laravel\Console\ConfigCommand;
-use IndexNowKit\Laravel\Console\ExplainCommand;
-use IndexNowKit\Laravel\Console\HistoryNotInstalledCommand;
-use IndexNowKit\Laravel\Console\KeyGenerateCommand;
+use IndexNowKit\Laravel\Console\ConfigSource;
 use IndexNowKit\Laravel\Console\ModelLoader;
-use IndexNowKit\Laravel\Console\SitemapNotInstalledCommand;
-use IndexNowKit\Laravel\Console\StatusNotInstalledCommand;
-use IndexNowKit\Laravel\Console\SubmitCommand;
-use IndexNowKit\Laravel\Console\SubmitModelCommand;
 use IndexNowKit\Laravel\Eloquent\EloquentSubjectReader;
 use IndexNowKit\Laravel\Eloquent\IndexNowObserver;
 use IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface;
@@ -100,14 +108,17 @@ use Psr\EventDispatcher\EventDispatcherInterface as Psr14;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Psr\SimpleCache\CacheInterface as Psr16;
+use Symfony\Component\Console\Command\LazyCommand;
 use Throwable;
 
 /**
  * Wires the core component graph into the container, one binding per core interface so an application can replace
  * any piece with `$this->app->bind()`; the bodies are the core's factories (`Http\TransportFactory`,
  * `Debounce\DebounceStoreFactory`, `Dispatch\DispatcherFactory`, the `fromConfig()` constructors). Registers the
- * observer support, the key file route, the artisan commands and the flush points (app()->terminating(), queue
- * JobProcessed). The sitemap bindings come from `Sitemap\SitemapServices` when the optional `indexnowkit/sitemap`
+ * observer support, the key file route, the artisan commands — the command classes of `indexnowkit/console`,
+ * `indexnowkit/sitemap` and `indexnowkit/history` (wave M, spec 19 §4.1: artisan resolves any symfony/console command;
+ * the ones with `#[AsCommand]` lazily by name, `indexnow:submit-model` through a `LazyCommand`) — and the flush points
+ * (app()->terminating(), queue JobProcessed). The sitemap bindings come from `Sitemap\SitemapServices` when the optional `indexnowkit/sitemap`
  * is installed (`Adapter\OptionalPackage` under {@see SITEMAP_PACKAGE}); without it `indexnow:sitemap` is a stub and
  * `indexnow:check` prints one line. The same for `Verify\VerifyServices` ({@see VERIFY_PACKAGE}) and
  * `History\HistoryServices` ({@see HISTORY_PACKAGE}: the submission store, `indexnow:history`, `indexnow:status`).
@@ -205,7 +216,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->publishes([__DIR__ . '/../config/indexnow.php' => $this->app->configPath('indexnow.php')], self::CONFIG_TAG);
             $this->registerAbout();
-            $this->commands([KeyGenerateCommand::class, CheckCommand::class, ConfigCommand::class, SubmitCommand::class, SubmitModelCommand::class, ExplainCommand::class, ...$this->sitemapPackage()->installed() ? SitemapServices::commands() : [SitemapNotInstalledCommand::class], ...self::historyPackage($this->app)->installed() ? HistoryServices::commands() : [HistoryNotInstalledCommand::class, StatusNotInstalledCommand::class]]);
+            $this->registerCommands();
         }
         $this->registerKeyFileRoute();
 
@@ -231,7 +242,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         $this->app->singleton(ThrottleInterface::class, static fn(Container $app): ThrottleInterface => TokenBucket::fromConfig($app->make(Config::class), $app->make(self::LOGGER), self::clock($app)));
         $this->app->singleton(self::FAILURE_CACHE, static function (Container $app): ?Psr16 {
             $store = $app->make(Config::class)->debounceStore ?? self::DEFAULT_DEBOUNCE_STORE;
-            if (\in_array($store, [DebounceStoreFactory::MEMORY, DebounceStoreFactory::NONE], true)) {
+            if (!DebounceStoreFactory::isShared($store)) {
                 return null;
             }
             $cache = $app->make(CacheFactory::class)->store($store === self::DEFAULT_DEBOUNCE_STORE ? null : $store);
@@ -340,21 +351,29 @@ final class IndexNowKitServiceProvider extends ServiceProvider
 
                 return self::package($app)->check(self::block($app, 'sitemap'), $defaults['sitemap'] ?? []);
             });
-            $this->app->singleton(SitemapNotInstalledCommand::class, static fn(Container $app): SitemapNotInstalledCommand => new SitemapNotInstalledCommand(self::package($app)->notInstalledMessage()));
             $sitemapCheck = self::SITEMAP_MISSING_CHECK;
         }
         $this->app->singleton(QueueCheck::class);
         $this->app->singleton(DebounceStoreCheck::class, static fn(Container $app): DebounceStoreCheck => new DebounceStoreCheck($app->make(Config::class), $app->make(CacheStoreProbe::class)(...), self::DEFAULT_DEBOUNCE_STORE));
         $this->app->singleton(EloquentCheck::class, static fn(Container $app): EloquentCheck => new EloquentCheck((bool) (self::block($app, 'eloquent')['enabled'] ?? true) && $app->make(Config::class)->enabled));
-        $this->app->singleton(RouterCheck::class, static function (Container $app): RouterCheck {
+        // The locale line is the core's check over the classes `--sample-class` names (the only ones a Laravel check can see).
+        $this->app->singleton(LocalesCheck::class, static function (Container $app): LocalesCheck {
             $router = self::block($app, 'router');
             $locales = \is_array($router['locales'] ?? null) ? array_values(array_filter($router['locales'], 'is_string')) : [];
             $parameter = $router['locale_parameter'] ?? 'locale';
+            $samples = $app->make(SampleOptions::class);
 
-            return new RouterCheck($locales, $app->make(AttributeReaderInterface::class), $app->make(SampleOptions::class), \is_string($parameter) && $parameter !== '' ? $parameter : 'locale');
+            return new LocalesCheck($locales, $app->make(AttributeReaderInterface::class), static fn(): array => self::sampleClasses($samples), 'router.locales', \is_string($parameter) && $parameter !== '' ? $parameter : 'locale');
         });
-        $this->app->singleton(SampleOptions::class);
-        $this->app->singleton(ModelSampler::class, static fn(Container $app): ModelSampler => new ModelSampler($app->make(SubjectLoaderInterface::class), $app->make(IndexNowKit::class)));
+        // The --sample / --sample-class holder, the model sampler already inside: the check command of indexnowkit/console
+        // writes the options into it and knows nothing of Eloquent; the sampler builds the facade on first use only.
+        $this->app->singleton(SampleOptions::class, static function (Container $app): SampleOptions {
+            $samples = new SampleOptions();
+            $samples->sampler = static fn(string $class, ?string $id): array => $app->make(SubjectSampler::class)($class, $id);
+
+            return $samples;
+        });
+        $this->app->singleton(SubjectSampler::class, static fn(Container $app): SubjectSampler => new SubjectSampler($app->make(SubjectLoaderInterface::class), $app->make(IndexNowKit::class)));
         $this->registerConsole();
         $verify = self::verifyPackage($this->app)->installed();
         $history = self::historyPackage($this->app)->installed();
@@ -385,20 +404,18 @@ final class IndexNowKitServiceProvider extends ServiceProvider
 
                 return self::historyPackage($app)->check(self::block($app, 'history'), $defaults['history'] ?? []);
             });
-            $this->app->singleton(HistoryNotInstalledCommand::class, static fn(Container $app): HistoryNotInstalledCommand => new HistoryNotInstalledCommand(self::historyPackage($app)->notInstalledMessage()));
-            $this->app->singleton(StatusNotInstalledCommand::class, static fn(Container $app): StatusNotInstalledCommand => new StatusNotInstalledCommand(self::historyPackage($app)->notInstalledMessage()));
             $historyCheck = self::HISTORY_MISSING_CHECK;
         }
-        $this->app->tag([QueueCheck::class, DebounceStoreCheck::class, $sitemapCheck, EloquentCheck::class, RouterCheck::class, ...$verifyChecks, $historyCheck], self::CHECK_TAG);
+        $this->app->tag([QueueCheck::class, DebounceStoreCheck::class, $sitemapCheck, EloquentCheck::class, LocalesCheck::class, ...$verifyChecks, $historyCheck], self::CHECK_TAG);
         $this->app->singleton(CheckerInterface::class, static fn(Container $app): CheckerInterface => new Checker($app->make(Config::class), $app->make(KeyProviderInterface::class), $app->make(TransportInterface::class), self::taggedChecks($app)));
         $this->app->singleton(KeyFileController::class, static fn(Container $app): KeyFileController => new KeyFileController($app->make(KeyFileResponder::class), $app->make(Config::class)->keyFileMaxAge, $app->make(Config::class)->hosts !== []));
     }
 
     /**
-     * The shared command bodies of the core (`IndexNowKit\Console\*Runner`) with Laravel words and bindings; the
-     * artisan commands only parse their input. Rebind `SubjectLoaderInterface`, `ResultFormatterInterface` or
-     * `SubmitterFactoryInterface` to change how models are found, how results are printed, what `--force` submits
-     * through.
+     * The shared command bodies of the core (`IndexNowKit\Console\*Runner`) with Laravel words and bindings, and the
+     * command classes of `indexnowkit/console` over them, each a binding of its own (`$this->app->extend(CheckCommand::class, …)`
+     * replaces one). Rebind `SubjectLoaderInterface`, `ResultFormatterInterface` or `SubmitterFactoryInterface` to change
+     * how models are found, how results are printed, what `--force` submits through.
      */
     private function registerConsole(): void
     {
@@ -412,6 +429,25 @@ final class IndexNowKitServiceProvider extends ServiceProvider
         ));
         $this->app->singleton(SubjectLoaderInterface::class, static fn(Container $app): SubjectLoaderInterface => $app->make(ModelLoader::class));
         $this->app->singleton(ResultFormatterInterface::class, ResultRenderer::class);
+        // what `check` and `config` read: the config repository, its strict build, the blocks of the installed packages
+        $this->app->singleton(ConfigSourceInterface::class, static function (Container $app): ConfigSourceInterface {
+            $blocks = $app->make(self::PACKAGE_BLOCKS);
+            \assert($blocks instanceof Closure);
+
+            return new ConfigSource($app->make(Repository::class), $app->make(Application::class), self::package($app), self::verifyPackage($app), self::historyPackage($app), $blocks);
+        });
+        // the command classes: `class` is called `model` here, as the artisan commands always did (Artisan::call(..., ['model' => …]))
+        $this->app->singleton(KeyGenerateCommand::class, static function (Container $app): KeyGenerateCommand {
+            $application = $app->make(Application::class);
+
+            return new KeyGenerateCommand($app->make(KeyGenerateRunner::class), '.env', $application instanceof \Illuminate\Foundation\Application ? $application->environmentFilePath() : $application->basePath('.env'));
+        });
+        $this->app->singleton(CheckCommand::class, static fn(Container $app): CheckCommand => new CheckCommand($app->make(CheckRunner::class), $app->make(ConfigSourceInterface::class), $app->make(SampleOptions::class)));
+        $this->app->singleton(ExplainCommand::class, static fn(Container $app): ExplainCommand => new ExplainCommand($app->make(ExplainRunner::class), $app->make(Vocabulary::class), 'model'));
+        $this->app->singleton(SubmitSubjectsCommand::class, static fn(Container $app): SubmitSubjectsCommand => new SubmitSubjectsCommand($app->make(SubmitSubjectsRunner::class), $app->make(Vocabulary::class), 'model'));
+        $this->app->singleton(SitemapNotInstalledCommand::class, static fn(Container $app): SitemapNotInstalledCommand => new SitemapNotInstalledCommand(self::package($app)->notInstalledMessage()));
+        $this->app->singleton(HistoryNotInstalledCommand::class, static fn(Container $app): HistoryNotInstalledCommand => new HistoryNotInstalledCommand(self::historyPackage($app)->notInstalledMessage()));
+        $this->app->singleton(StatusNotInstalledCommand::class, static fn(Container $app): StatusNotInstalledCommand => new StatusNotInstalledCommand(self::historyPackage($app)->notInstalledMessage()));
         $this->app->singleton(SubmitterFactoryInterface::class, static fn(Container $app): SubmitterFactoryInterface => new SubmitterFactory(
             $app->make(TransportInterface::class),
             $app->make(KeyProviderInterface::class),
@@ -425,6 +461,49 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             $app->make(SubmissionStoreInterface::class),
             self::clock($app),
         ));
+    }
+
+    /**
+     * The artisan commands: the classes of `indexnowkit/console`, `indexnowkit/sitemap` and `indexnowkit/history` (or
+     * the "not installed" stubs of `indexnowkit/console`), registered by class. `Illuminate\Console\Application::resolve()`
+     * puts a class with `#[AsCommand]` into its lazy command map and builds it from the container on first use;
+     * `indexnow:submit-model` has no attribute (its name is the vocabulary's), so it goes in as a `LazyCommand` — an
+     * eager `make()` would build the runner and the graph on every `php artisan`.
+     */
+    private function registerCommands(): void
+    {
+        $this->commands([
+            KeyGenerateCommand::class,
+            CheckCommand::class,
+            ConfigCommand::class,
+            SubmitCommand::class,
+            ExplainCommand::class,
+            ...$this->sitemapPackage()->installed() ? SitemapServices::commands() : [SitemapNotInstalledCommand::class],
+            ...self::historyPackage($this->app)->installed() ? HistoryServices::commands() : [HistoryNotInstalledCommand::class, StatusNotInstalledCommand::class],
+        ]);
+        $app = $this->app;
+        Artisan::starting(static function (Artisan $artisan) use ($app): void {
+            $words = $app->make(Vocabulary::class);
+            $artisan->addCommand(new LazyCommand($words->submitSubjects, [], Definitions::submitSubjects($words, 'model')->description, false, static fn(): SubmitSubjectsCommand => $app->make(SubmitSubjectsCommand::class)));
+        });
+    }
+
+    /**
+     * The classes among the `--sample-class` values (`<FQCN>` or `<FQCN>:<id>`), for the locale line of `check`.
+     *
+     * @return list<class-string>
+     */
+    private static function sampleClasses(SampleOptions $samples): array
+    {
+        $classes = [];
+        foreach ($samples->classes as $spec) {
+            $class = str_contains($spec, ':') ? strstr($spec, ':', true) : $spec;
+            if (\is_string($class) && class_exists($class)) {
+                $classes[] = $class;
+            }
+        }
+
+        return $classes;
     }
 
     /** The `IndexNow` section of `php artisan about`: what a support request needs first, the key masked. */
@@ -460,7 +539,7 @@ final class IndexNowKitServiceProvider extends ServiceProvider
             'Dispatch' => \is_string($dispatch) ? $dispatch : $config->dispatch,
             'Debounce' => $config->debouncePerUrl . 's via ' . ($config->debounceStore ?? self::DEFAULT_DEBOUNCE_STORE),
             'Verify' => $this->aboutVerify(),
-            'History' => self::historyPackage($this->app)->installed() ? HistoryServices::aboutLine($this->app) : 'not installed (composer require indexnowkit/history)',
+            'History' => self::historyPackage($this->app)->installed() ? HistoryServices::aboutLine($this->app) : self::aboutNotInstalled(self::historyPackage($this->app)),
             'Check' => 'php artisan indexnow:check --strict',
         ];
     }
@@ -468,11 +547,17 @@ final class IndexNowKitServiceProvider extends ServiceProvider
     private function aboutVerify(): string
     {
         if (!self::verifyPackage($this->app)->installed()) {
-            return 'not installed (composer require indexnowkit/verify)';
+            return self::aboutNotInstalled(self::verifyPackage($this->app));
         }
         $verify = VerifyServices::effective($this->app);
 
         return $verify->enabled ? \sprintf('enabled (redirect: %s, non_canonical: %s, origin_error: %s)', $verify->redirect->value, $verify->nonCanonical->value, $verify->originError->value) : 'installed, disabled (verify.enabled: false)';
+    }
+
+    /** The `about` value of an absent package: the core's `check` line without its feature word (`not installed (composer require …)`). */
+    private static function aboutNotInstalled(OptionalPackage $package): string
+    {
+        return substr($package->checkLine([]), \strlen($package->feature) + 2);
     }
 
     private function registerKeyFileRoute(): void

@@ -8,9 +8,6 @@ use IndexNowKit\Adapter\ConfigFactory as CoreConfigFactory;
 use IndexNowKit\Adapter\OptionalPackage;
 use IndexNowKit\Config;
 use IndexNowKit\Exception\ConfigurationException;
-use IndexNowKit\Laravel\History\HistoryServices;
-use IndexNowKit\Laravel\Sitemap\SitemapServices;
-use IndexNowKit\Laravel\Verify\VerifyServices;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -43,7 +40,8 @@ final class ConfigFactory
      * The same for indexnowkit/verify and the `verify` block, indexnowkit/history and the `history` block.
      *
      * The predicates are the core's `OptionalPackage::sitemap()` / `verify()` / `history()`: they answer without the
-     * package, where a class of the package (`SitemapServices::options()` and the like) is loaded only behind them.
+     * package and know the options their package owns (`OptionalPackage::ownedOptions()`, loaded only behind the
+     * predicate) and which block is ignored without it (`ignoredBlocks()`).
      *
      * @param bool|null $sitemapInstalled null = detect; the provider passes the answer of the container's
      *                                    `OptionalPackage`, tests pass false
@@ -52,16 +50,14 @@ final class ConfigFactory
      */
     public static function factory(?bool $sitemapInstalled = null, ?bool $verifyInstalled = null, ?bool $historyInstalled = null): CoreConfigFactory
     {
-        $sitemap = OptionalPackage::sitemap($sitemapInstalled)->installed();
-        $verify = OptionalPackage::verify($verifyInstalled)->installed();
-        $history = OptionalPackage::history($historyInstalled)->installed();
+        $packages = [OptionalPackage::sitemap($sitemapInstalled), OptionalPackage::verify($verifyInstalled), OptionalPackage::history($historyInstalled)];
 
         return new CoreConfigFactory(
-            ownedOptions: [...self::LARAVEL_OPTIONS, ...$sitemap ? SitemapServices::options() : [], ...$verify ? VerifyServices::options() : [], ...$history ? HistoryServices::options() : []],
+            ownedOptions: [...self::LARAVEL_OPTIONS, ...OptionalPackage::ownedOptions($packages)],
             dispatchModes: self::DISPATCH_MODES,
             needBaseUrl: ['queue'],
             checkCommand: 'php artisan indexnow:check',
-            ignoreBlocks: [...$sitemap ? [] : ['sitemap'], ...$verify ? [] : ['verify'], ...$history ? [] : ['history']],
+            ignoreBlocks: OptionalPackage::ignoredBlocks($packages),
         );
     }
 

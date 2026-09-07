@@ -12,6 +12,7 @@ use Illuminate\Routing\Router;
 use IndexNowKit\Config;
 use IndexNowKit\Exception\ConfigurationException;
 use IndexNowKit\Laravel\Eloquent\RouteBindingFieldsInterface;
+use IndexNowKit\Url\RouteOrigin;
 use IndexNowKit\Url\RouteUrlResolverInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -23,7 +24,9 @@ use Psr\Log\NullLogger;
  * Origin: inside an HTTP request the URL keeps the host Laravel generated it on; in the console (artisan, queue
  * workers) it is rebased onto `base_url`; a rule that pins a host (`#[IndexNow(host: ...)]`) is rebased onto
  * `hosts.<host>.base_url`, else `https://<host>`. Routes with their own `Route::domain()` keep it. The
- * UrlGenerator's global state (`forceRootUrl`) is never touched.
+ * UrlGenerator's global state (`forceRootUrl`) is never touched. What every bridge of the family decides the same
+ * way (the locale expansion and its one warning, the pinned origin, the rebase, the exception) is the core's
+ * `Url\RouteOrigin`.
  */
 final class LaravelRouteUrlResolver implements RouteUrlResolverInterface, RouteBindingFieldsInterface
 {
@@ -48,22 +51,7 @@ final class LaravelRouteUrlResolver implements RouteUrlResolverInterface, RouteB
 
     public function locales(array|string $locales): array
     {
-        if (\is_array($locales)) {
-            return $locales === [] ? [null] : $locales;
-        }
-        if ($locales !== 'all') {
-            return [null];
-        }
-        if ($this->locales !== []) {
-            return $this->locales;
-        }
-        // Otherwise the rule silently collapses to a single URL; once per process, not once per model.
-        if (!$this->warnedAboutLocales) {
-            $this->warnedAboutLocales = true;
-            $this->logger->warning('indexnow: a rule asks for locales: \'all\' but "router.locales" is empty; one URL in the current locale is generated instead of one per locale');
-        }
-
-        return [null];
+        return RouteOrigin::expand($locales, $this->locales, $this->logger, 'router.locales', $this->warnedAboutLocales);
     }
 
     public function generate(string $route, array $params, ?string $locale = null, ?string $host = null): string
@@ -83,7 +71,7 @@ final class LaravelRouteUrlResolver implements RouteUrlResolverInterface, RouteB
         try {
             $url = $this->urls->route($route, $params, true);
         } catch (Exception $e) {
-            throw new ConfigurationException(\sprintf('Cannot generate route "%s": %s', $route, $e->getMessage()), 0, $e);
+            throw RouteOrigin::generationFailed($route, $e);
         } finally {
             if ($previousLocale !== null) {
                 $this->app->setLocale($previousLocale);
@@ -91,7 +79,7 @@ final class LaravelRouteUrlResolver implements RouteUrlResolverInterface, RouteB
         }
         $root = $this->rootFor($host);
 
-        return $root === null || $definition->getDomain() !== null ? $url : self::rebase($url, $root);
+        return $root === null || $definition->getDomain() !== null ? $url : RouteOrigin::rebase($url, $root);
     }
 
     /**
@@ -115,24 +103,9 @@ final class LaravelRouteUrlResolver implements RouteUrlResolverInterface, RouteB
     private function rootFor(?string $host): ?string
     {
         if ($host !== null) {
-            return $this->config->baseUrlFor($host) ?? 'https://' . $host;
+            return RouteOrigin::pinnedRoot($this->config, $host);
         }
 
         return $this->app->runningInConsole() ? $this->config->baseUrl : null;
-    }
-
-    /**
-     * Replaces scheme, host and port of $url with those of $root; path, query and fragment stay.
-     */
-    private static function rebase(string $url, string $root): string
-    {
-        $target = parse_url($root);
-        $source = parse_url($url);
-        if (!\is_array($target) || !\is_array($source) || !isset($target['scheme'], $target['host'])) {
-            return $url;
-        }
-        $origin = $target['scheme'] . '://' . $target['host'] . (isset($target['port']) ? ':' . $target['port'] : '');
-
-        return $origin . ($source['path'] ?? '/') . (isset($source['query']) ? '?' . $source['query'] : '') . (isset($source['fragment']) ? '#' . $source['fragment'] : '');
     }
 }

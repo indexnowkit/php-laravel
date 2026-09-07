@@ -13,10 +13,10 @@ use IndexNowKit\Check\CheckInterface;
 use IndexNowKit\Check\SampleGateCheck;
 use IndexNowKit\Check\SampleOptions;
 use IndexNowKit\Config;
+use IndexNowKit\Console\SubjectSampler;
 use IndexNowKit\Dispatch\DispatcherFactory;
 use IndexNowKit\Http\TransportInterface;
 use IndexNowKit\Key\KeyProviderInterface;
-use IndexNowKit\Laravel\Check\ModelSampler;
 use IndexNowKit\Submission\SubmissionStoreInterface;
 use IndexNowKit\SubmitterInterface;
 use IndexNowKit\Url\UrlNormalizerInterface;
@@ -86,7 +86,7 @@ final class VerifyServices
         $app->singleton(self::TRANSPORT_CHECK, static fn(Container $app): CheckInterface => Package::transportCheck($app->make(VerifyConfig::class), $app->make(Config::class)));
         $app->singleton(SampleGateCheck::class, static fn(Container $app): SampleGateCheck => SampleGateCheck::withPackage(
             $app->make(SampleOptions::class),
-            Package::sampleCheck($app->make(self::TRANSPORT), $app->make(VerifyConfig::class), $app->make(UrlNormalizerInterface::class), $app->make(KeyProviderInterface::class), $app->make(ModelSampler::class)(...), $app->make(RobotsCache::class)),
+            Package::sampleCheck($app->make(self::TRANSPORT), $app->make(VerifyConfig::class), $app->make(UrlNormalizerInterface::class), $app->make(KeyProviderInterface::class), $app->make(SubjectSampler::class)(...), $app->make(RobotsCache::class)),
         ));
 
         $psr14 = static function (Container $app) use ($events): ?EventDispatcherInterface {

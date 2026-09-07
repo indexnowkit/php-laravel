@@ -13,14 +13,13 @@ use Illuminate\Database\DatabaseManager;
 use IndexNowKit\Adapter\OptionalPackage;
 use IndexNowKit\Check\CheckInterface;
 use IndexNowKit\Config;
-use IndexNowKit\Debounce\DebounceStoreFactory;
 use IndexNowKit\History\Adapter\HistoryServices as Package;
+use IndexNowKit\History\Console\HistoryCommand;
 use IndexNowKit\History\Console\HistoryRunner;
+use IndexNowKit\History\Console\StatusCommand;
 use IndexNowKit\History\Console\StatusRunner;
 use IndexNowKit\History\HistoryConfig;
 use IndexNowKit\Key\KeyProviderInterface;
-use IndexNowKit\Laravel\Console\HistoryCommand;
-use IndexNowKit\Laravel\Console\StatusCommand;
 use IndexNowKit\Laravel\IndexNowKitServiceProvider;
 use IndexNowKit\Retry\ForbiddenCounter;
 use IndexNowKit\Submission\NullSubmissionStore;
@@ -28,8 +27,6 @@ use IndexNowKit\Submission\SubmissionStoreInterface;
 use IndexNowKit\Url\UrlNormalizerInterface;
 use PDO;
 use Psr\SimpleCache\CacheInterface;
-use ReflectionClass;
-use Throwable;
 
 /**
  * The history bindings: the container ids and the Laravel side (the config repository, the cache and database
@@ -66,7 +63,7 @@ final class HistoryServices
     }
 
     /**
-     * @return list<class-string>
+     * @return list<class-string> the artisan commands: the package's `History\Console\HistoryCommand` and `StatusCommand`, bound by {@see register()}
      */
     public static function commands(): array
     {
@@ -103,6 +100,9 @@ final class HistoryServices
             $app->make(SubmissionStoreInterface::class),
             self::adapterFacts($app),
         ));
+        // the command classes of the package, over the runners: artisan resolves them lazily by their #[AsCommand] names
+        $app->singleton(HistoryCommand::class, static fn(Container $app): HistoryCommand => new HistoryCommand($app->make(HistoryRunner::class)));
+        $app->singleton(StatusCommand::class, static fn(Container $app): StatusCommand => new StatusCommand($app->make(StatusRunner::class)));
     }
 
     /** The effective block, for `indexnow:config` and `about`. */
@@ -147,21 +147,14 @@ final class HistoryServices
         return $app->make(CacheFactory::class)->store($name === IndexNowKitServiceProvider::DEFAULT_DEBOUNCE_STORE ? null : $name);
     }
 
-    /** `memory`, `none`, or `<store> (<driver>)` — `cache (redis)`, `redis (redis)`, `cache (array)`. */
+    /** `memory`, `none`, or `<store> (<StoreClass>)` — `cache (RedisStore)`, `redis (RedisStore)`, `cache (ArrayStore)`; the package's one text. */
     private static function debounceStoreDescription(Container $app): string
     {
-        $store = $app->make(Config::class)->debounceStore ?? IndexNowKitServiceProvider::DEFAULT_DEBOUNCE_STORE;
-        if (\in_array($store, [DebounceStoreFactory::MEMORY, DebounceStoreFactory::NONE], true)) {
-            return $store;
-        }
-        try {
+        return Package::describeStore($app->make(Config::class)->debounceStore, IndexNowKitServiceProvider::DEFAULT_DEBOUNCE_STORE, static function (string $store) use ($app): object {
             $repository = $app->make(CacheFactory::class)->store($store === IndexNowKitServiceProvider::DEFAULT_DEBOUNCE_STORE ? null : $store);
-            $driver = method_exists($repository, 'getStore') ? strtolower((string) preg_replace('/Store$/', '', (new ReflectionClass($repository->getStore()))->getShortName())) : '?';
-        } catch (Throwable) {
-            $driver = 'unavailable';
-        }
 
-        return \sprintf('%s (%s)', $store, $driver);
+            return method_exists($repository, 'getStore') ? $repository->getStore() : $repository;
+        });
     }
 
     /**
