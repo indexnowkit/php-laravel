@@ -3,7 +3,48 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: SemVer; until 1.0 minor versions may
 contain breaking changes, listed under "Changed".
 
-## [0.14.1] — Unreleased
+## [0.15.0] — Unreleased
+
+
+The test suite of this package stays on PHPUnit `^11.5`: `laravel/framework` 12/13 registers its error handler in a way
+PHPUnit 12.5 rejects (`ErrorHandler::enable(): Argument #1 must be TestCase`), so the family-wide `^11.5 || ^12.0 || ^13.0`
+of audit 0.13 W2 does not apply here until the framework does.
+
+### Changed
+
+- **`Eloquent\IndexNowObserver` resolves through the change handler, not through the facade.** Its constructor now
+  takes a `Closure(): ObjectChangeHandler` and a `Closure(list<string>): void` sink instead of `IndexNowKit`, so the
+  first `save()` of any model builds the rules, the resolver and the extractor and nothing else: the submitter, the
+  client, the transport, the throttle and the debounce store are built in the sink, once a save actually produced a
+  URL. A change handler the container cannot build is one `error` line per process, never an exception in `save()`.
+  Migration: an observer built by hand becomes `IndexNowObserver::forKit($kit, $logger, $enabled, $router)`; the
+  container binding is unchanged, so applications using the trait or `IndexNowKit::observe()` do nothing.
+  `Url\ObjectChangeHandler` is now a binding of its own (built over `AttributeReaderInterface`, `GuardedUrlResolver`
+  and `ParamExtractor`) and is handed to the `IndexNowKit` binding, so replacing it changes both.
+- **`Psr\Clock\ClockInterface` is a container binding** (`IndexNowKit\Clock\SystemClock` by default, bound only when
+  the application has not bound one) and reaches the throttle, the debounce store, the submitter and the command
+  submitter factory. Binding `IndexNowKit\Testing\FrozenClock` makes the debounce window and the submission records
+  of `indexnowkit/history` deterministic in tests (docs/extending.md, docs/testing.md).
+- **`Queue\SubmitUrlsJob` carries the attempts its batch already spent** (`$spentAttempts`, appended to the
+  constructor with a default; `attempt()` is the batch-wide attempt number, `tries` is what is left of
+  `retry.max_attempts`). A partially accepted batch is re-queued as a new job whose `attempts()` starts at one again,
+  so before this `retry.max_attempts` bounded each job instead of the batch, and a steadily shrinking batch could be
+  retried far more often than configured. Queued jobs from an older version keep running (`spentAttempts` defaults to 0).
+- `Check\SampleOptions` and `Check\VerifySampleCheck` are **removed**: they were copies of the core's
+  `IndexNowKit\Check\SampleOptions` and `IndexNowKit\Check\SampleGateCheck` (core 0.13), which are now bound under
+  their own class names. Same container mechanics, same `verify.installed` lines, same `--sample` behaviour.
+- The `resolver:` container lookup no longer wraps the container's exception itself: `Url\ArrayResolverLocator` does
+  it for every adapter, so *any* failure (not only a `BindingResolutionException`) is now the one family text
+  `IndexNow URL resolver "…" cannot be built by the container: …`.
+
+### Added
+
+- **`Check\RouterCheck`**: `indexnow:check` prints the locales `locales: 'all'` expands to, and warns naming
+  `router.locales` when a rule the command can see (`--sample-class=<FQCN>`) asks for every locale while the list is
+  empty. At run time the same situation is one warning per process from `Url\LaravelRouteUrlResolver`, which used to
+  collapse to a single URL without a word.
+- A service tagged `indexnowkit.check` that is not a `Check\CheckInterface` is now a `ConfigurationException` naming
+  the tag when the checker is built, instead of a fatal in the middle of the check run.
 
 ### Fixed
 
